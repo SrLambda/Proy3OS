@@ -1,5 +1,3 @@
-## [Dependencias]
-
-# PYTHON
-tkinter
-pillow
+# [Dependencias]
+## PYTHON
+tkinter - pillow
