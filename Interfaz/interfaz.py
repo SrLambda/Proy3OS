@@ -1,14 +1,21 @@
 import random
 import tkinter as tk
 from tkinter import font
+import sys
+import os
+
+# Agregar el directorio padre al path para importar las clases del simulador
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PIL import Image, ImageOps, ImageTk
+from simulador import Simulador
+from proceso import Proceso
 
 # =========================================================
 
 
-# --- CLASE DE PRUEBA PARA EL BACKEND DE MEMORIA ---
-class GestionMemoria:
+# --- CLASE DE PRUEBA PARA EL BACKEND DE MEMORIA (COMENTADA PARA USAR EL SIMULADOR REAL) ---
+class GestionMemoria_Old:
     def __init__(self, ram_mb=2048, swap_mb=4096, block_size_mb=64):
         num_bloques_ram = ram_mb // block_size_mb
         num_bloques_swap = swap_mb // block_size_mb
@@ -60,6 +67,74 @@ class GestionMemoria:
 
 # =========================================================
 
+# --- ADAPTADOR PARA SINCRONIZAR CON EL SIMULADOR REAL ---
+class AdaptadorMemoriaUI:
+    """
+    Clase que adapta los datos del simulador real para la interfaz gráfica
+    """
+    def __init__(self, simulador):
+        self.simulador = simulador
+        self.procesos_colores = {}
+        self._colores_disponibles = [
+            "#FF5733", "#33FF57", "#3357FF", "#FF33A1",
+            "#A133FF", "#33FFA1", "#FFC300", "#DAF7A6",
+            "#FF8C00", "#8A2BE2", "#20B2AA", "#DC143C"
+        ]
+        self.block_size_mb = 64  # Tamaño de bloque para visualización
+        
+    def _asignar_color_proceso(self, pid):
+        """Asigna un color único a cada proceso"""
+        if pid not in self.procesos_colores:
+            color = random.choice(self._colores_disponibles)
+            self.procesos_colores[pid] = {"color": color}
+            
+    def obtener_datos_memoria_ram(self):
+        """Convierte los datos de memoria del simulador a formato para la UI"""
+        memoria = self.simulador.memoria
+        total_mb = memoria.tamano_total // (1024 * 1024)
+        num_bloques_ui = total_mb // self.block_size_mb
+        
+        # Crear array de bloques para la UI
+        bloques_ui = [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_ui)]
+        
+        # Mapear bloques ocupados del simulador a bloques UI
+        for bloque in memoria.bloques_ocupados:
+            inicio_mb = bloque.inicio // (1024 * 1024)
+            tamano_mb = bloque.tamano // (1024 * 1024)
+            
+            inicio_bloque_ui = inicio_mb // self.block_size_mb
+            fin_bloque_ui = (inicio_mb + tamano_mb) // self.block_size_mb
+            
+            # Asegurar que no excedamos el límite
+            fin_bloque_ui = min(fin_bloque_ui, num_bloques_ui)
+            
+            # Marcar bloques como ocupados
+            for i in range(inicio_bloque_ui, fin_bloque_ui):
+                if i < len(bloques_ui):
+                    bloques_ui[i]["estado"] = "ocupado"
+                    bloques_ui[i]["proceso_id"] = f"P{bloque.pid_proceso}"
+                    self._asignar_color_proceso(f"P{bloque.pid_proceso}")
+                    
+        return bloques_ui
+    
+    def obtener_datos_swap(self):
+        """Por ahora retorna SWAP vacío - se puede implementar después"""
+        swap_mb = 4096  # 4GB de SWAP
+        num_bloques_swap = swap_mb // self.block_size_mb
+        return [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_swap)]
+    
+    def obtener_porcentaje_uso_ram(self):
+        """Calcula el porcentaje de uso de RAM"""
+        uso = self.simulador.memoria.obtener_uso_memoria()
+        return uso['porcentaje_uso']
+    
+    def obtener_porcentaje_uso_swap(self):
+        """Retorna 0% para SWAP por ahora"""
+        return 0.0
+
+
+# =========================================================
+
 
 class SimuladorUI:
     """
@@ -71,38 +146,34 @@ class SimuladorUI:
         Constructor de la clase. Inicializa la ventana principal y sus componentes.
         :param master: La ventana raíz de Tkinter (tk.Tk()).
         """
-        self.master = master
-
-        # --- Configuración de la Ventana Principal ---
+        self.master = master        # --- Configuración de la Ventana Principal ---
         self.master.title("Simulador de Ejecución de Procesos")
         self.master.geometry("1280x720")
         self.master.configure(bg="black")
         self.master.resizable(False, False)
 
-        # --- Prueba ---
-        self.gestor_memoria = GestionMemoria()
-
-        # --- Inicializar Layout ---
+        # --- Inicializar Simulador Real ---
+        self.simulador = Simulador(num_nucleos=2)
+        self.adaptador_memoria = AdaptadorMemoriaUI(self.simulador)
+        
+        # Estado de la simulación
+        self.simulacion_iniciada = False
+        self.procesos_ejemplo = []        # --- Inicializar Layout ---
         self._crear_layout()
 
         self._crear_widgets()
 
-        # --- TEST: Realizar una prueba inicial para visualizar ---
-        self.gestor_memoria.registrar_nuevo_proceso("P1")
-        self.gestor_memoria.asignar_memoria_a_proceso("P1", 300)  # Asigna 5 bloques
-        self.gestor_memoria.registrar_nuevo_proceso("P2")
-        self.gestor_memoria.asignar_memoria_a_proceso("P2", 500)  # Asigna 8 bloques
+        # --- TEST: Crear algunos procesos de ejemplo ---
+        self._crear_procesos_ejemplo()
 
-        # --- CORRECCIÓN: Llamar a la función de dibujo después de un breve retraso ---
+        # --- Actualizar UI después de un breve retraso ---
         self.master.after(100, self._actualizar_ui_memoria)
 
     def iniciar(self):
         """
         Método para iniciar el bucle principal de la aplicación.
         """
-        self.master.mainloop()
-
-    # --- NUEVOS MÉTODOS PARA DIBUJAR LA MEMORIA ---
+        self.master.mainloop()    # --- NUEVOS MÉTODOS PARA DIBUJAR LA MEMORIA ---
     def _dibujar_barra_memoria(self, canvas, memoria_data, procesos_colores):
         canvas.delete("all")
         ancho_canvas = canvas.winfo_width()
@@ -134,21 +205,25 @@ class SimuladorUI:
             )
 
     def _actualizar_ui_memoria(self):
-        # Esta función será el punto central para refrescar las barras
+        # Esta función será el punto central para refrescar las barras usando el simulador real
+        datos_ram = self.adaptador_memoria.obtener_datos_memoria_ram()
+        datos_swap = self.adaptador_memoria.obtener_datos_swap()
+        
         self._dibujar_barra_memoria(
             self.canvas_ram,
-            self.gestor_memoria.ram,
-            self.gestor_memoria.procesos_colores,
+            datos_ram,
+            self.adaptador_memoria.procesos_colores,
         )
         self._dibujar_barra_memoria(
             self.canvas_swap,
-            self.gestor_memoria.swap,
-            self.gestor_memoria.procesos_colores,
-        )
-
-        # Actualizar porcentajes (a implementar)
-        self.label_ram_porcentaje.config(text="-- %")
-        self.label_swap_porcentaje.config(text="-- %")
+            datos_swap,
+            self.adaptador_memoria.procesos_colores,
+        )        # Actualizar porcentajes reales
+        porcentaje_ram = self.adaptador_memoria.obtener_porcentaje_uso_ram()
+        porcentaje_swap = self.adaptador_memoria.obtener_porcentaje_uso_swap()
+        
+        self.label_ram_porcentaje.config(text=f"{porcentaje_ram:.1f} %")
+        self.label_swap_porcentaje.config(text=f"{porcentaje_swap:.1f} %")
 
     def _crear_layout(self):
         """
@@ -309,10 +384,10 @@ class SimuladorUI:
         font_botones_grandes = font.Font(family="Helvetica", size=15)
         font_form_opt = font.Font(family="Helvetica", size=15)
         font_form_cuantum = font.Font(family="Helvetica", size=12)
-        font_memoria = font.Font(family="Helvetica", size=12, weight="bold")
-
-        # --- Widgets en Frame Superior (Fila 1) ---
-        imagen_ayuda_original = Image.open("boton_ayuda.png")
+        font_memoria = font.Font(family="Helvetica", size=12, weight="bold")        # --- Widgets en Frame Superior (Fila 1) ---
+        # Obtener la ruta correcta de la imagen
+        ruta_imagen = os.path.join(os.path.dirname(__file__), "boton_ayuda.png")
+        imagen_ayuda_original = Image.open(ruta_imagen)
         imagen_rgba = imagen_ayuda_original.convert("RGBA")
 
         # 1. Separar los canales de color (RGB) de la transparencia (A)
@@ -474,9 +549,7 @@ class SimuladorUI:
         form_container.pack(expand=True)
 
         # Llamamos a la función una vez para establecer el estado inicial correcto
-        self._actualizar_estado_quantum()
-
-        # --- Widgets en Frame 3.1.2.1 (Botón Finalizar) ---
+        self._actualizar_estado_quantum()        # --- Widgets en Frame 3.1.2.1 (Botón Finalizar) ---
         self.boton_finalizar = tk.Button(
             self.frame_3_1_2_1,
             text="Finalizar",
@@ -486,6 +559,7 @@ class SimuladorUI:
             font=font_botones,
             bd=0,
             cursor="hand2",
+            command=self._finalizar_simulacion
         )
         # Usamos place para un tamaño proporcional del 80% y márgenes del 10%
         self.boton_finalizar.place(relx=0.15, rely=0.15, relwidth=0.7, relheight=0.7)
@@ -500,6 +574,7 @@ class SimuladorUI:
             font=font_botones,
             bd=0,
             cursor="hand2",
+            command=self._iniciar_simulacion
         )
         self.frame_3_1_2_2.grid(row=0, column=1, sticky="nsew")
         self.boton_iniciar.place(relx=0.15, rely=0.15, relwidth=0.7, relheight=0.7)
@@ -514,9 +589,98 @@ class SimuladorUI:
             font=font_botones_grandes,
             bd=0,
             cursor="hand2",
+            command=self._agregar_proceso_aleatorio
         )
-        # Para este botón más grande, podemos usar una proporción mayor, ej: 90%
-        self.boton_agregar.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.9)
+        # Para este botón más grande, podemos usar una proporción mayor, ej: 90%        self.boton_agregar.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.9)
+
+    def _finalizar_simulacion(self):
+        """Finaliza la simulación actual"""
+        if self.simulacion_iniciada:
+            self.simulacion_iniciada = False
+            self.simulador.detener_simulacion()
+            self.boton_iniciar.config(state=tk.NORMAL)
+            self.boton_finalizar.config(state=tk.DISABLED)
+            print("🛑 Simulación finalizada por el usuario")
+            
+    def _agregar_proceso_aleatorio(self):
+        """Agrega un proceso aleatorio al simulador"""
+        import random
+        
+        # Generar PID único
+        pid = len(self.simulador.procesos_nuevos) + len(self.simulador.procesos_terminados) + 1
+        
+        # Crear proceso con valores aleatorios
+        nuevo_proceso = Proceso(
+            pid=pid,
+            tiempo_llegada=self.simulador.reloj_global,
+            duracion=random.randint(3, 10),
+            tamano_memoria=random.randint(100, 400) * 1024 * 1024  # 100-400 MB
+        )
+          # Agregar al simulador
+        self.simulador.agregar_proceso(nuevo_proceso)
+        self._actualizar_ui_memoria()
+        
+        print(f"➕ Proceso P{pid} agregado - Memoria: {nuevo_proceso.tamano_memoria//(1024*1024)}MB, Duración: {nuevo_proceso.duracion}")
+        
+    def _configurar_algoritmo(self):
+        """Configura el algoritmo seleccionado en el simulador"""
+        algoritmo = self.algoritmo_seleccionado.get()
+        self.simulador.configurar_algoritmo(algoritmo)
+        
+        if algoritmo == "RR":
+            try:
+                quantum = int(self.entrada_quantum.get()) if self.entrada_quantum.get() else 2
+                self.simulador.set_quantum(quantum)
+                print(f"⚙️  Algoritmo configurado: Round Robin (Quantum: {quantum})")
+            except ValueError:
+                self.simulador.set_quantum(2)  # Valor por defecto
+                print("⚙️  Algoritmo configurado: Round Robin (Quantum: 2 por defecto)")
+        else:
+            print(f"⚙️  Algoritmo configurado: {algoritmo}")
+
+    def _crear_procesos_ejemplo(self):
+        """Crea algunos procesos de ejemplo para la demostración"""
+        procesos = [
+            Proceso(pid=1, tiempo_llegada=0, duracion=5, tamano_memoria=200*1024*1024),  # 200MB
+            Proceso(pid=2, tiempo_llegada=1, duracion=3, tamano_memoria=150*1024*1024),  # 150MB
+            Proceso(pid=3, tiempo_llegada=2, duracion=8, tamano_memoria=300*1024*1024),  # 300MB
+        ]
+        
+        self.procesos_ejemplo = procesos
+        
+        # Agregar procesos al simulador pero no ejecutar aún
+        for proceso in procesos:
+            self.simulador.agregar_proceso(proceso)
+            
+    def _iniciar_simulacion(self):
+        """Inicia la simulación del sistema"""
+        if not self.simulacion_iniciada:
+            # Configurar algoritmo seleccionado
+            self._configurar_algoritmo()
+            
+            # Cambiar estado de botones
+            self.boton_iniciar.config(state=tk.DISABLED)
+            self.boton_finalizar.config(state=tk.NORMAL)
+            
+            # Iniciar simulación
+            self.simulacion_iniciada = True
+            self.simulador.iniciar_simulacion()
+              # Programar el primer paso de simulación
+            self.master.after(1000, self._paso_simulacion)
+            print("🚀 Simulación iniciada desde la interfaz")
+            
+    def _paso_simulacion(self):
+        """Ejecuta un paso de la simulación"""
+        if self.simulacion_iniciada:
+            continuar = self.simulador.paso_simulacion()
+            self._actualizar_ui_memoria()
+            
+            # Si la simulación debe continuar, programar el siguiente paso
+            if continuar:
+                self.master.after(2000, self._paso_simulacion)  # Paso cada 2 segundos
+            else:
+                self.simulacion_iniciada = False
+                print("🏁 Simulación completada")
 
 
 # --- Punto de Entrada de la Aplicación ---
