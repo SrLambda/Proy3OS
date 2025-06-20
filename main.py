@@ -20,7 +20,7 @@ def crear_procesos_ejemplo():
     return procesos
 
 def ejecutar_simulacion_sjf():
-    """Ejecuta simulación con algoritmo SJF"""
+    {"""Ejecuta simulación con algoritmo SJF"""}
     print("\n=== SIMULACIÓN CON ALGORITMO SJF ===\n")
     
     simulador = Simulador(num_nucleos=2)
