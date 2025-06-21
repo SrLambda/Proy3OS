@@ -19,7 +19,23 @@ class Simulador:
         
         # Algoritmo de planificación actual
         self.algoritmo_planificacion = "SJF"
-
+        
+    
+    def todos_los_procesos(self):
+        """
+        Retorna todos los procesos en el sistema, independientemente de su estado
+        """
+        # 1. Procesos en CPU - recoge los procesos que no son None
+        procesos_en_cpu = [p for p in self.cpu.nucleos if p is not None]
+        
+        # 2. Combinar todas las listas de procesos
+        return (
+            self.procesos_nuevos
+            + self.cola_listos
+            + procesos_en_cpu
+            + self.procesos_terminados
+        )
+    
     def agregar_proceso(self, proceso):
         """Agrega un proceso al sistema"""
         proceso.set_estado("nuevo")
@@ -197,3 +213,5 @@ class Simulador:
     def set_algoritmo_planificacion(self, algoritmo):
         """Configura el algoritmo de planificación (método alternativo)"""
         self.configurar_algoritmo(algoritmo)
+        
+    
