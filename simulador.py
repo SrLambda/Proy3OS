@@ -81,8 +81,8 @@ class Simulador:
         self.reloj_global += 1
         
         # Ahora terminar después de 10 pasos para ver procesos terminando
-        if self.reloj_global >= 10:
-            print("🏁 Simulación terminada (10 pasos completados)")
+        if self.reloj_global >= 15:
+            print("🏁 Simulación terminada (15 pasos completados)")
             return False
         
         return True
@@ -114,7 +114,7 @@ class Simulador:
             print(f"Cola listos: {len(self.cola_listos)} procesos")
             print(f"Ejecutando: {sum(1 for nucleo in self.cpu.nucleos if nucleo)} procesos")
             print(f"Terminados: {len(self.procesos_terminados)} procesos")
-            
+
             # Mostrar estado de cada núcleo
             for i, proceso in enumerate(self.cpu.nucleos):
                 if proceso:
@@ -213,5 +213,5 @@ class Simulador:
     def set_algoritmo_planificacion(self, algoritmo):
         """Configura el algoritmo de planificación (método alternativo)"""
         self.configurar_algoritmo(algoritmo)
-        
+
     

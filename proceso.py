@@ -25,6 +25,7 @@ class Proceso:
         self.tiempo_restante = max(0, self.tiempo_restante - tiempo_unidad)
         if self.tiempo_restante == 0:
             self.set_estado("terminado")
+        print(f"[{self.nombre}] Estado final: {self.estado}")
 
     def set_estado(self, nuevo_estado):
         self.estado = nuevo_estado
