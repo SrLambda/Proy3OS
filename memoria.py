@@ -60,23 +60,17 @@ class Memoria:
                 bloques_a_liberar.append(bloque)
                 print(f"📦 Liberando bloque: {bloque.tamano:,} bytes en posición {bloque.inicio}")
         
-        # Liberar cada bloque
+        # Mover bloques a libres
         for bloque in bloques_a_liberar:
-            # Crear nuevo bloque libre
-            nuevo_bloque_libre = BloqueMemoria(
-                bloque.id,
-                bloque.inicio,
-                bloque.tamano,
-                ocupado=False,
-                pid_proceso=None
-            )
-            
-            self.bloques_libres.append(nuevo_bloque_libre)
+            # Cambiar estado a libre
+            bloque.ocupado = False
+            bloque.pid_proceso = None
+            self.bloques_libres.append(bloque)
             self.bloques_ocupados.remove(bloque)
-        
-        # Limpiar la lista de bloques asignados del proceso
-        proceso.bloques_memoria_asignados.clear()
-        
+            
+            # Limpiar la lista de bloques asignados del proceso
+            proceso.bloques_memoria_asignados.clear()
+            
         # Fusionar bloques libres adyacentes
         print(f"🔄 Fusionando bloques libres adyacentes...")
         self.fusionar_bloques_libres()

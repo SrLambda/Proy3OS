@@ -119,10 +119,14 @@ class AdaptadorMemoriaUI:
         return bloques_ui
     
     def obtener_datos_swap(self):
-        """Por ahora retorna SWAP vacío - se puede implementar después"""
-        swap_mb = 4096  # 4GB de SWAP
-        num_bloques_swap = swap_mb // self.block_size_mb
-        return [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_swap)]
+        """Implementar manejo real de SWAP"""
+        if hasattr(self.simulador, 'swap'):
+            # Lógica similar a obtener_datos_memoria_ram
+            pass
+        else:
+            swap_mb = 4096  # Tamaño de SWAP en MB 4GB
+            num_bloques_swap = swap_mb // self.block_size_mb
+            return [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_swap)]
     
     def obtener_porcentaje_uso_ram(self):
         """Calcula el porcentaje de uso de RAM"""
@@ -206,6 +210,8 @@ class SimuladorUI:
             )
 
     def _actualizar_ui_memoria(self):
+        self.canvas_ram.config(width=self.intermedio_1_2.winfo_width())
+        self.canvas_swap.config(width=self.intermedio_2_2.winfo_width())
         # Esta función será el punto central para refrescar las barras usando el simulador real
         datos_ram = self.adaptador_memoria.obtener_datos_memoria_ram()
         datos_swap = self.adaptador_memoria.obtener_datos_swap()
@@ -624,26 +630,38 @@ class SimuladorUI:
         
         # Configurar estilo para la tabla
         style = ttk.Style()
-        style.configure("Treeview", 
-                        background="#616161",  # Fondo gris para celdas
-                        foreground="white",    # Texto blanco
-                        fieldbackground="#616161",  # Fondo de campos
-                        font=('Helvetica', 10))
         
+        #Configurar colores
+        bg_color = "#616161"  # Color de fondo del frame
+        header_color = "#535353"  # Color de encabezados
+        cell_color = "#616161"  # Color de celdas (mismo que fondo)
+        text_color = "white"  # Color de texto
+        
+        # Cambiar estilo de los encabezados
+        style = ttk.Style()
         style.configure("Treeview.Heading", 
-                        background="#535353",  # Fondo más oscuro para encabezados
-                        foreground="white",
-                        font=('Helvetica', 10, 'bold'))
+                    background=header_color, 
+                    foreground="black",
+                    font=('Helvetica', 10, 'bold'))
         
+        # Cambiar estilo de las filas
+        style.configure("Treeview", 
+                    background=bg_color,
+                    foreground=text_color,
+                    fieldbackground=bg_color,
+                    font=('Helvetica', 10))
+        
+        # Cambiar color de selección
         style.map('Treeview', 
-                background=[('selected', '#424242')])  # Color selección
+                background=[('selected', '#424242')])
         
-        # Crear la tabla
+        
+        
+        # Crear la tabla con el estilo personalizado
         self.tabla_procesos = ttk.Treeview(
             self.frame_inf_derecho,
             columns=("PID", "Nombre", "Estado", "Duración", "Memoria"),
-            show="headings",
-            style="Treeview"  # Aplicar el estilo
+            show="headings"
         )
         
         # Configurar encabezados
@@ -655,12 +673,18 @@ class SimuladorUI:
         
         # Configurar columnas
         self.tabla_procesos.column("PID", width=50, anchor="center")
-        self.tabla_procesos.column("Nombre", width=120, anchor="w")
+        self.tabla_procesos.column("Nombre", width=120, anchor="center")
         self.tabla_procesos.column("Estado", width=80, anchor="center")
         self.tabla_procesos.column("Duración", width=70, anchor="center")
         self.tabla_procesos.column("Memoria", width=90, anchor="center")
         
-        # Añadir scrollbar
+        # Configurar el frame contenedor para que tenga el mismo color
+        self.frame_inf_derecho = tk.Frame(
+            self.frame_inferior, 
+            bg="#616161"  # Asegurar que el frame tenga el mismo color
+        )
+        
+        # Añadir scrollbar con estilo personalizado
         scrollbar = ttk.Scrollbar(
             self.frame_inf_derecho, 
             orient="vertical", 
@@ -668,9 +692,12 @@ class SimuladorUI:
         )
         self.tabla_procesos.configure(yscrollcommand=scrollbar.set)
         
-        # Empaquetar
-        scrollbar.pack(side="right", fill="y")
+        # Empaquetar con el mismo color de fondo
+        scrollbar.pack(side="right", fill="y", padx=(0, 10), pady=10)
         self.tabla_procesos.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Asegurar que el scrollbar tenga el mismo fondo
+        style.configure("Vertical.TScrollbar", background=header_color)
 
 
     def _finalizar_simulacion(self):
@@ -704,31 +731,125 @@ class SimuladorUI:
         ventana = tk.Toplevel(self.master)
         ventana.title("Añadir Proceso")
         ventana.configure(bg="#2c2c2c")
-        ventana.geometry("300x300")
+        ventana.geometry("350x350")
+        ventana.resizable(False, False)
 
-        labels = ["Nombre", "Llegada", "Duración", "Memoria (MB)"]
+        # Variables para los campos
+        var_nombre = tk.StringVar()
+        var_llegada = tk.StringVar()
+        var_duracion = tk.StringVar()
+        var_memoria = tk.StringVar()
+
+        # Función para generar valores aleatorios
+        def generar_aleatorio():
+            nombres = ["Navegador", "Editor", "Reproductor", "Juego", "Antivirus", "Calculadora"]
+            nombre = random.choice(nombres)
+            llegada = random.randint(0, 10)
+            duracion = random.randint(3, 10)
+            memoria = random.randint(100, 400)
+            
+            var_nombre.set(nombre)
+            var_llegada.set(str(llegada))
+            var_duracion.set(str(duracion))
+            var_memoria.set(str(memoria))
+
+        # Función de validación
+        def validar_numero(P):
+            return P.isdigit() or P == ""
+
+        vcmd = (ventana.register(validar_numero), '%P')
+
+        # Marco para el formulario
+        form_frame = tk.Frame(ventana, bg="#2c2c2c")
+        form_frame.pack(pady=10)
+
+        # Campos del formulario
+        campos = [
+            ("Nombre", var_nombre, "text", ""),
+            ("Tiempo de llegada", var_llegada, "number", 0),
+            ("Duración (burst)", var_duracion, "number", 1),
+            ("Memoria (MB)", var_memoria, "number", 10)
+        ]
+        
         entries = []
+        for i, (label, var, tipo, default) in enumerate(campos):
+            tk.Label(form_frame, text=label, fg="white", bg="#2c2c2c").grid(
+                row=i, column=0, padx=5, pady=5, sticky="w")
+            entry = tk.Entry(form_frame, textvariable=var)
+            if tipo == "number":
+                entry.config(validate="key", validatecommand=vcmd)
+                var.set(str(default))
+            entry.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
+            entries.append(entry)
 
-        for i, texto in enumerate(labels):
-            tk.Label(ventana, text=texto, fg="white", bg="#2c2c2c").pack(pady=5)
-            entrada = tk.Entry(ventana)
-            entrada.pack()
-            entries.append(entrada)
+        # Botón para generar datos aleatorios
+        btn_generar = tk.Button(
+            form_frame, 
+            text="Generar Aleatorio",
+            command=generar_aleatorio,
+            bg="#5D6D7E",
+            fg="white"
+        )
+        btn_generar.grid(row=len(campos), column=0, columnspan=2, pady=10, sticky="ew")
 
+        # Función para añadir el proceso
         def agregar():
-            nombre = entries[0].get()
-            llegada = int(entries[1].get())
-            duracion = int(entries[2].get())
-            memoria = int(entries[3].get()) * 1024 * 1024  # MB a bytes
+            try:
+                nombre = var_nombre.get() or f"Proceso_{random.randint(100,999)}"
+                llegada = max(0, int(var_llegada.get()))
+                duracion = max(1, int(var_duracion.get()))
+                memoria = max(1, int(var_memoria.get())) * 1024 * 1024  # MB a bytes
 
-            pid = len(self.simulador.procesos_nuevos) + len(self.simulador.procesos_terminados) + 1
-            proceso = Proceso(pid=pid, nombre=nombre, tiempo_llegada=llegada, duracion=duracion, tamano_memoria=memoria)
-            self.simulador.agregar_proceso(proceso)
-            self._actualizar_ui_memoria()
-            self._actualizar_tabla_procesos()  # Para reflejarlo si ya tienes la tabla
-            ventana.destroy()
+                # Crear proceso (el simulador asignará PID)
+                proceso = Proceso(
+                    nombre=nombre,
+                    tiempo_llegada=llegada,
+                    duracion=duracion,
+                    tamano_memoria=memoria
+                )
+                
+                # Añadir al simulador
+                self.simulador.agregar_proceso(proceso)
+                
+                # Actualizar UI
+                self._actualizar_ui_memoria()
+                self._actualizar_tabla_procesos()
+                ventana.destroy()
+                
+                print(f"➕ Proceso añadido: {nombre} (Llegada: {llegada}, "
+                    f"Duración: {duracion}, Memoria: {memoria//(1024*1024)}MB)")
+            except ValueError:
+                messagebox.showerror("Error", "Valores inválidos. Verifique los números.")
 
-        tk.Button(ventana, text="Añadir", command=agregar, bg="#4CAF50", fg="white").pack(pady=20)
+        # Botones finales
+        btn_frame = tk.Frame(ventana, bg="#2c2c2c")
+        btn_frame.pack(pady=10)
+        
+        tk.Button(
+            btn_frame, 
+            text="Cancelar", 
+            command=ventana.destroy,
+            width=10,
+            bg="#E74C3C",
+            fg="white"
+        ).pack(side="left", padx=10)
+        
+        tk.Button(
+            btn_frame, 
+            text="Añadir", 
+            command=agregar,
+            width=10,
+            bg="#2ECC71",
+            fg="white"
+        ).pack(side="right", padx=10)
+
+        # Generar valores aleatorios iniciales
+        generar_aleatorio()
+
+        # Hacer la ventana modal
+        ventana.grab_set()
+        ventana.transient(self.master)
+        ventana.wait_window(ventana)
 
         
     def _configurar_algoritmo(self):
@@ -750,9 +871,9 @@ class SimuladorUI:
     def _crear_procesos_ejemplo(self):
         """Crea algunos procesos de ejemplo para la demostración"""
         procesos = [
-        Proceso(pid=1, nombre="Navegador", tiempo_llegada=0, duracion=5, tamano_memoria=200*1024*1024),
-        Proceso(pid=2, nombre="Editor", tiempo_llegada=1, duracion=3, tamano_memoria=150*1024*1024),
-        Proceso(pid=3, nombre="Reproductor", tiempo_llegada=2, duracion=8, tamano_memoria=300*1024*1024),
+        Proceso(nombre="Navegador", tiempo_llegada=0, duracion=5, tamano_memoria=200*1024*1024),
+        Proceso(nombre="Editor", tiempo_llegada=1, duracion=3, tamano_memoria=150*1024*1024),
+        Proceso(nombre="Reproductor", tiempo_llegada=2, duracion=8, tamano_memoria=300*1024*1024),
     ]
         
         self.procesos_ejemplo = procesos
@@ -787,15 +908,63 @@ class SimuladorUI:
         """Ejecuta un paso de la simulación"""
         if self.simulacion_iniciada:
             continuar = self.simulador.paso_simulacion()
+            
+            
             self._actualizar_ui_memoria()
             self._actualizar_tabla_procesos()
             
             # Si la simulación debe continuar, programar el siguiente paso
             if continuar:
-                self.master.after(2000, self._paso_simulacion)  # Paso cada 2 segundos
+                # Usar velocidad configurable en lugar de fija
+                velocidad = 1000  # ms, podría ser configurable
+                self.master.after(velocidad, self._paso_simulacion)
             else:
                 self.simulacion_iniciada = False
+                self.mostrar_estadisticas()  # Mostrar estadísticas al finalizar
                 print("🏁 Simulación completada")
+                
+    def mostrar_estadisticas(self):
+        """Muestra una ventana con estadísticas al finalizar la simulación"""
+        if not self.simulador.procesos_terminados:
+            return
+        
+        ventana = tk.Toplevel(self.master)
+        ventana.title("Estadísticas de Simulación")
+        ventana.geometry("600x400")
+        
+        # Calcular métricas
+        tiempos_espera = []
+        tiempos_respuesta = []
+        tiempos_retorno = []
+        
+        for proceso in self.simulador.procesos_terminados:
+            t_espera = proceso.tiempo_finalizacion - proceso.tiempo_llegada - proceso.duracion
+            t_retorno = proceso.tiempo_finalizacion - proceso.tiempo_llegada
+            t_respuesta = proceso.tiempo_inicio_ejecucion - proceso.tiempo_llegada
+            
+            
+            tiempos_espera.append(t_espera)
+            tiempos_respuesta.append(t_respuesta)
+            tiempos_retorno.append(t_retorno)
+        
+        # Crear tabla con ttk.Treeview
+        tabla = ttk.Treeview(ventana, columns=("Métrica", "SJF", "RR"), show="headings")
+        tabla.heading("Métrica", text="Métrica")
+        tabla.heading("SJF", text="SJF")
+        tabla.heading("RR", text="Round Robin")
+        
+        # Agregar datos (aquí deberías tener datos reales de ambas simulaciones)
+        datos = [
+            ("Tiempo Espera Promedio", sum(tiempos_espera)/len(tiempos_espera), 0),
+            ("Tiempo Respuesta Promedio", sum(tiempos_respuesta)/len(tiempos_respuesta), 0),
+            ("Tiempo Retorno Promedio", sum(tiempos_retorno)/len(tiempos_retorno), 0)
+        ]
+        
+        for dato in datos:
+            tabla.insert("", "end", values=dato)
+        
+        tabla.pack(fill="both", expand=True, padx=10, pady=10)
+    
 
 
 # --- Punto de Entrada de la Aplicación ---

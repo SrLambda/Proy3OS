@@ -2,14 +2,14 @@ import time
 import random
 
 class Proceso:
-    def __init__(self, pid,nombre="", tiempo_llegada=0, duracion=0, tamano_memoria=0,):
+    def __init__(self, nombre="", tiempo_llegada=0, duracion=0, tamano_memoria=0, pid=None):
         self.pid = pid  # ID del proceso
         self.nombre = nombre  # Asegúrate de tener este atributo
         self.tiempo_llegada = tiempo_llegada  # Momento en que el proceso llega al sistema 
         self.duracion = duracion  # Tiempo total de CPU que necesita el proceso (CPU burst) 
         self.tiempo_restante = duracion # Tiempo restante de ejecución
         self.tamano_memoria = tamano_memoria # Tamaño en memoria que requiere el proceso 
-        self.estado = "Nuevo"  # Estado actual del proceso (Nuevo, Listo, Ejecutando, Esperando, Terminado) 
+        self.estado = "nuevo"  # Estado actual del proceso (Nuevo, Listo, Ejecutando, Esperando, Terminado) 
         self.tiempo_inicio_ejecucion = -1 # Para calcular tiempo de respuesta
         self.tiempo_finalizacion = -1 # Para calcular tiempo de retorno
         self.tiempo_espera = 0 # Para calcular tiempo de espera

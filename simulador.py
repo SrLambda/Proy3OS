@@ -11,6 +11,7 @@ class Simulador:
         self.quantum = 2  # Quantum más corto para ver desalojos
         self.reloj_global = 0
         self.simulacion_activa = True
+        self.proximo_pid = 1  # Para asignar IDs únicos a los procesos
         
         # Listas para gestionar procesos
         self.procesos_nuevos = []
@@ -20,6 +21,13 @@ class Simulador:
         # Algoritmo de planificación actual
         self.algoritmo_planificacion = "SJF"
         
+    
+    def obtener_proximo_pid(self):
+        """Obtiene el próximo PID secuencial"""
+        pid_actual = self.proximo_pid
+        self.proximo_pid += 1
+        return pid_actual
+    
     
     def todos_los_procesos(self):
         """
@@ -37,10 +45,14 @@ class Simulador:
         )
     
     def agregar_proceso(self, proceso):
-        """Agrega un proceso al sistema"""
+        """Agrega un proceso al sistema asignando PID automático"""
+        # Asignar PID solo si no tiene uno
+        if proceso.pid is None:
+            proceso.pid = self.obtener_proximo_pid()
+        
         proceso.set_estado("nuevo")
-        self.procesos_nuevos.append(proceso)  # Cambiar cola_nuevos por procesos_nuevos
-        print(f"✅ Proceso {proceso.pid} agregado al sistema (Memoria: {proceso.tamano_memoria // (1024**2)}MB)")
+        self.procesos_nuevos.append(proceso)
+        print(f"✅ Proceso {proceso.pid} agregado (Memoria: {proceso.tamano_memoria//(1024**2)}MB)")
         
     def configurar_algoritmo(self, algoritmo):
         """Configura el algoritmo de planificación"""
@@ -81,7 +93,7 @@ class Simulador:
         self.reloj_global += 1
         
         # Ahora terminar después de 10 pasos para ver procesos terminando
-        if self.reloj_global >= 15:
+        if self.reloj_global >= 30:
             print("🏁 Simulación terminada (15 pasos completados)")
             return False
         
