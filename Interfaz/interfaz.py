@@ -191,7 +191,7 @@ class SimuladorUI:
             y0 = 0
             y1 = alto_canvas
 
-            color = "#424242"  # Color por defecto para bloques libres
+            color = "#555555"  # Color por defecto para bloques libres
             outline_color = "#555555"  # Color del borde del bloque
 
             if bloque["estado"] == "ocupado":
@@ -632,7 +632,7 @@ class SimuladorUI:
         
         style.configure("Treeview.Heading", 
                         background="#535353",  # Fondo más oscuro para encabezados
-                        foreground="white",
+                        foreground="black",
                         font=('Helvetica', 10, 'bold'))
         
         style.map('Treeview', 
