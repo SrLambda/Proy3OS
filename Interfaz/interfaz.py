@@ -5,6 +5,8 @@ import sys
 import os
 from tkinter import ttk
 
+import proceso
+
 # Agregar el directorio padre al path para importar las clases del simulador
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -37,9 +39,9 @@ class GestionMemoria_Old:
     def _inicializar_memoria(self, num_bloques):
         return [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques)]
 
-    def registrar_nuevo_proceso(self, proceso_id):
+    def registrar_nuevo_proceso(self, proceso_id, color=None):
         if proceso_id not in self.procesos_colores:
-            color = random.choice(self._colores_disponibles)
+            color = proceso[color]
             self.procesos_colores[proceso_id] = {"color": color}
 
     def asignar_memoria_a_proceso(self, proceso_id, memoria_requerida_mb):

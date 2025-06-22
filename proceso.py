@@ -2,7 +2,7 @@ import time
 import random
 
 class Proceso:
-    def __init__(self, nombre="", tiempo_llegada=0, duracion=0, tamano_memoria=0, pid=None):
+    def __init__(self, nombre="", tiempo_llegada=0, duracion=0, tamano_memoria=0, pid=None, color=None):
         self.pid = pid  # ID del proceso
         self.nombre = nombre  # Asegúrate de tener este atributo
         self.tiempo_llegada = tiempo_llegada  # Momento en que el proceso llega al sistema
@@ -19,7 +19,7 @@ class Proceso:
         self.color = self.generar_color()
 
     def __repr__(self):
-        return f"P{self.pid} (Estado: {self.estado}, Dur: {self.duracion}, Rest: {self.tiempo_restante}, Mem: {self.tamano_memoria}), Color: {self.generar_color()}"
+        return f"P{self.pid} (Estado: {self.estado}, Dur: {self.duracion}, Rest: {self.tiempo_restante}, Mem: {self.tamano_memoria}), Color: {self.color}"
 
     def actualizar_tiempo_restante(self, tiempo_unidad):
         """Actualiza el tiempo restante del proceso"""
@@ -38,4 +38,3 @@ class Proceso:
     def generar_color(self):
         colorasignado = "#{:06x}".format(random.randint(0, 0xFFFFFF))
         return colorasignado
-

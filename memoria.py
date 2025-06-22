@@ -11,7 +11,7 @@ class Memoria:
     def asignar_memoria(self, proceso):
         """Asigna memoria a un proceso usando algoritmo First-Fit"""
         tamano_requerido = proceso.tamano_memoria
-        print(f"📋 Intentando asignar {tamano_requerido:,} bytes al proceso {proceso.pid}")
+        print(f"📋 Intentando asignar {tamano_requerido:,} bytes al proceso {proceso.pid}, de color {proceso.color}")
         
         # Buscar un bloque libre que sea suficientemente grande
         for i, bloque in enumerate(self.bloques_libres):
@@ -24,7 +24,8 @@ class Memoria:
                     bloque.inicio,
                     tamano_requerido,
                     ocupado=True,
-                    pid_proceso=proceso.pid
+                    pid_proceso=proceso.pid,
+                    color=proceso.color
                 )
                 
                 self.bloques_ocupados.append(nuevo_bloque_ocupado)
@@ -68,7 +69,8 @@ class Memoria:
                 bloque.inicio,
                 bloque.tamano,
                 ocupado=False,
-                pid_proceso=None
+                pid_proceso=None,
+                color=None
             )
 
             self.bloques_libres.append(nuevo_bloque_libre)
