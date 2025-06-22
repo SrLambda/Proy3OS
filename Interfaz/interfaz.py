@@ -86,9 +86,13 @@ class AdaptadorMemoriaUI:
         self.block_size_mb = 64  # Tamaño de bloque para visualización
 
     def _asignar_color_proceso(self, pid):
-        """Asigna un color único a cada proceso"""
+        """Asigna un color único a cada proceso sin repetir"""
         if pid not in self.procesos_colores:
-            color = random.choice(self._colores_disponibles)
+            if not self._colores_disponibles:
+                # Si se acaban los colores, se puede generar uno aleatorio
+                color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+            else:
+                color = self._colores_disponibles.pop(0)  # Usar sin repetir
             self.procesos_colores[pid] = {"color": color}
 
     def obtener_datos_memoria_ram(self):
@@ -253,8 +257,13 @@ class SimuladorUI:
                 proceso.duracion,
                 memoria_mb
             ), tags=(proceso.pid,))
-            self.tabla_procesos.tag_configure(proceso.pid, background=proceso.color)
+            # Obtener el mismo color que se usa en la memoria RAM
+            pid_tag = f"P{proceso.pid}"  # Asegúrate de que coincida con lo usado en AdaptadorMemoriaUI
 
+            # Asignar color coherente si existe
+            color_proceso = self.adaptador_memoria.procesos_colores.get(pid_tag, {}).get("color", "#FFFFFF")
+
+            self.tabla_procesos.tag_configure(proceso.pid, background=color_proceso)
 
     def _crear_layout(self):
         """
