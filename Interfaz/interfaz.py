@@ -250,7 +250,8 @@ class SimuladorUI:
                 proceso.estado.capitalize(),  # Mostrar con primera letra mayúscula
                 proceso.duracion,
                 memoria_mb
-            ))
+            ), tags=(proceso.pid,))
+            self.tabla_procesos.tag_configure(proceso.pid, background=proceso.color)
 
 
     def _crear_layout(self):
@@ -625,7 +626,7 @@ class SimuladorUI:
         # Configurar estilo para la tabla
         style = ttk.Style()
         style.configure("Treeview",
-                        background="#616161",  # Fondo gris para celdas
+                        background="#616161",  # Fondo gris para celdas  #### Proceso.generar_color(id)
                         foreground="white",    # Texto blanco
                         fieldbackground="#616161",  # Fondo de campos
                         font=('Helvetica', 10))

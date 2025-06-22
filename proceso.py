@@ -1,4 +1,3 @@
-# proceso.py
 import time
 import random
 
@@ -17,10 +16,10 @@ class Proceso:
         self.tiempo_en_cpu = 0 # Tiempo que el proceso ha estado en CPU
         self.tiempo_quantum_actual = 0 # Tiempo ejecutado en el quantum actual (para Round Robin)
         self.bloques_memoria_asignados = [] # Lista de bloques de memoria asignados
-        self.color = None # ¡NUEVO! Atributo para almacenar el color del proceso
+        self.color = self.generar_color()
 
     def __repr__(self):
-        return f"P{self.pid} (Estado: {self.estado}, Dur: {self.duracion}, Rest: {self.tiempo_restante}, Mem: {self.tamano_memoria})"
+        return f"P{self.pid} (Estado: {self.estado}, Dur: {self.duracion}, Rest: {self.tiempo_restante}, Mem: {self.tamano_memoria}), Color: {self.generar_color()}"
 
     def actualizar_tiempo_restante(self, tiempo_unidad):
         """Actualiza el tiempo restante del proceso"""
@@ -30,12 +29,13 @@ class Proceso:
         print(f"[{self.nombre}] Estado final: {self.estado}")
 
     def set_estado(self, nuevo_estado):
-        """Establece el estado del proceso y registra el tiempo si es necesario."""
         self.estado = nuevo_estado
-        # print(f"Proceso {self.pid} cambió a estado: {self.estado}")
 
     def reiniciar_quantum(self):
         """Reinicia el tiempo de quantum actual para Round Robin"""
         self.tiempo_quantum_actual = 0
 
+    def generar_color(self):
+        colorasignado = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+        return colorasignado
 
