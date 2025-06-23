@@ -443,12 +443,10 @@ class SimuladorUI:
 
         # 4. Añadir la transparencia original a la imagen de colores invertidos
         imagen_negativo = inverted_rgb
-        imagen_negativo.putalpha(alpha_channel)
-
-        # Redimensionamos la imagen final ya procesada
+        imagen_negativo.putalpha(alpha_channel)        # Redimensionamos la imagen final ya procesada
         imagen_ayuda_redimensionada = imagen_negativo.resize((32, 32), Image.LANCZOS)
         self.imagen_ayuda_tk = ImageTk.PhotoImage(imagen_ayuda_redimensionada)
-
+        
         self.boton_ayuda = tk.Button(
             self.frame_superior,
             image=self.imagen_ayuda_tk,
@@ -458,6 +456,7 @@ class SimuladorUI:
             highlightthickness=0,
             relief="flat",
             cursor="hand2",
+            command=self._mostrar_ayuda
         )
         self.boton_ayuda.image = self.imagen_ayuda_tk
         self.boton_ayuda.pack(side="left", padx=10, pady=10)
@@ -976,6 +975,248 @@ class SimuladorUI:
         else:
             ttk.Label(frame_resumen, text="No hay procesos terminados para calcular estadísticas").pack(pady=10)
     
+    def _mostrar_ayuda(self):
+        """Muestra una ventana de ayuda con información sobre el simulador y los controles"""
+        ventana_ayuda = tk.Toplevel(self.master)
+        ventana_ayuda.title("Ayuda - Simulador de Sistema Operativo")
+        ventana_ayuda.configure(bg="#2c2c2c")
+        ventana_ayuda.geometry("700x600")
+        ventana_ayuda.resizable(True, True)
+        
+        # Hacer la ventana modal
+        ventana_ayuda.grab_set()
+        
+        # Frame principal con scrollbar
+        main_frame = tk.Frame(ventana_ayuda, bg="#2c2c2c")
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Canvas y scrollbar para contenido scrolleable
+        canvas = tk.Canvas(main_frame, bg="#2c2c2c", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg="#2c2c2c")
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Configurar estilos de texto
+        titulo_font = font.Font(family="Helvetica", size=16, weight="bold")
+        subtitulo_font = font.Font(family="Helvetica", size=12, weight="bold")
+        texto_font = font.Font(family="Helvetica", size=10)
+        
+        # Título principal
+        tk.Label(
+            scrollable_frame, 
+            text="🖥️ Simulador de Sistema Operativo", 
+            font=titulo_font, 
+            fg="#4CAF50", 
+            bg="#2c2c2c"
+        ).pack(pady=(0, 20))
+        
+        # Sección: ¿Qué es este simulador?
+        tk.Label(
+            scrollable_frame, 
+            text="📋 ¿Qué es este simulador?", 
+            font=subtitulo_font, 
+            fg="white", 
+            bg="#2c2c2c"
+        ).pack(anchor="w", pady=(0, 5))
+        
+        descripcion = """Este simulador reproduce el comportamiento de un sistema operativo simplificado, 
+incluyendo la gestión de procesos, memoria (RAM y SWAP) y planificación de CPU. 
+Permite visualizar en tiempo real cómo el sistema asigna recursos y ejecuta procesos."""
+        
+        tk.Label(
+            scrollable_frame, 
+            text=descripcion, 
+            font=texto_font, 
+            fg="lightgray", 
+            bg="#2c2c2c",
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 15))
+        
+        # Sección: Algoritmos de planificación
+        tk.Label(
+            scrollable_frame, 
+            text="⚙️ Algoritmos de Planificación", 
+            font=subtitulo_font, 
+            fg="white", 
+            bg="#2c2c2c"
+        ).pack(anchor="w", pady=(0, 5))
+        
+        algoritmos = """• FCFS (First Come First Served): Los procesos se ejecutan en orden de llegada.
+• SJF (Shortest Job First): Se ejecuta primero el proceso de menor duración.
+• Round Robin (RR): Cada proceso recibe un quantum de tiempo, rotando cíclicamente.
+• Prioridad: Los procesos con mayor prioridad se ejecutan primero."""
+        
+        tk.Label(
+            scrollable_frame, 
+            text=algoritmos, 
+            font=texto_font, 
+            fg="lightgray", 
+            bg="#2c2c2c",
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 15))
+        
+        # Sección: Controles de la interfaz
+        tk.Label(
+            scrollable_frame, 
+            text="🎮 Controles de la Interfaz", 
+            font=subtitulo_font, 
+            fg="white", 
+            bg="#2c2c2c"
+        ).pack(anchor="w", pady=(0, 5))
+        
+        controles = """• Iniciar: Comienza la simulación con los procesos configurados.
+• Finalizar: Detiene la simulación en curso.
+• Añadir Proceso: Abre una ventana para agregar un nuevo proceso personalizado.
+• Selección de Algoritmo: Cambia el algoritmo de planificación (FCFS, SJF, RR, Prioridad).
+• Quantum (solo RR): Define el tiempo máximo que un proceso puede ejecutarse antes de ser interrumpido."""
+        
+        tk.Label(
+            scrollable_frame, 
+            text=controles, 
+            font=texto_font, 
+            fg="lightgray", 
+            bg="#2c2c2c",
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 15))
+        
+        # Sección: Visualización de memoria
+        tk.Label(
+            scrollable_frame, 
+            text="💾 Visualización de Memoria", 
+            font=subtitulo_font, 
+            fg="white", 
+            bg="#2c2c2c"
+        ).pack(anchor="w", pady=(0, 5))
+        
+        memoria = """• Barras de RAM y SWAP: Muestran el uso actual de memoria.
+• Colores: Cada proceso tiene un color único para identificarlo fácilmente.
+• Porcentajes: Indican el porcentaje de memoria utilizada en tiempo real.
+• Bloques: Representan segmentos de memoria de 64MB cada uno."""
+        
+        tk.Label(
+            scrollable_frame, 
+            text=memoria, 
+            font=texto_font, 
+            fg="lightgray", 
+            bg="#2c2c2c",
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 15))
+        
+        # Sección: Tabla de procesos
+        tk.Label(
+            scrollable_frame, 
+            text="📊 Tabla de Procesos", 
+            font=subtitulo_font, 
+            fg="white", 
+            bg="#2c2c2c"
+        ).pack(anchor="w", pady=(0, 5))
+        
+        tabla = """• PID: Identificador único del proceso.
+• Nombre: Nombre descriptivo del proceso.
+• Estado: Nuevo, Listo, Ejecutando, Terminado.
+• Llegada: Tiempo en que el proceso llega al sistema.
+• Duración: Tiempo total de CPU que necesita el proceso.
+• Memoria: Cantidad de memoria RAM requerida."""
+        
+        tk.Label(
+            scrollable_frame, 
+            text=tabla, 
+            font=texto_font, 
+            fg="lightgray", 
+            bg="#2c2c2c",
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 15))
+        
+        # Sección: Estadísticas
+        tk.Label(
+            scrollable_frame, 
+            text="📈 Estadísticas de Rendimiento", 
+            font=subtitulo_font, 
+            fg="white", 
+            bg="#2c2c2c"
+        ).pack(anchor="w", pady=(0, 5))
+        
+        estadisticas = """Al finalizar la simulación se muestran métricas importantes:
+• Tiempo de Espera: Tiempo que un proceso espera en la cola de listos.
+• Tiempo de Respuesta: Tiempo desde la llegada hasta la primera ejecución.
+• Tiempo de Retorno: Tiempo total desde la llegada hasta la finalización.
+• Promedios: Valores promedio de todas las métricas para evaluar eficiencia."""
+        
+        tk.Label(
+            scrollable_frame, 
+            text=estadisticas, 
+            font=texto_font, 
+            fg="lightgray", 
+            bg="#2c2c2c",
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 15))
+        
+        # Sección: Consejos de uso
+        tk.Label(
+            scrollable_frame, 
+            text="💡 Consejos de Uso", 
+            font=subtitulo_font, 
+            fg="white", 
+            bg="#2c2c2c"
+        ).pack(anchor="w", pady=(0, 5))
+        
+        consejos = """• Experimenta con diferentes algoritmos para comparar su eficiencia.
+• Ajusta el quantum en Round Robin para ver cómo afecta el rendimiento.
+• Añade procesos durante la simulación para ver la respuesta en tiempo real.
+• Observa cómo la memoria se fragmenta y reorganiza dinámicamente.
+• Compara las estadísticas entre diferentes configuraciones."""
+        
+        tk.Label(
+            scrollable_frame, 
+            text=consejos, 
+            font=texto_font, 
+            fg="lightgray", 
+            bg="#2c2c2c",
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 20))
+        
+        # Botón de cerrar
+        tk.Button(
+            scrollable_frame, 
+            text="Cerrar", 
+            command=ventana_ayuda.destroy,
+            bg="#4CAF50",
+            fg="white",
+            font=texto_font,
+            width=15,
+            pady=8
+        ).pack(pady=(10, 0))
+        
+        # Configurar el canvas y scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Configurar scroll con rueda del mouse
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        # Limpiar binding al cerrar ventana
+        def on_closing():
+            canvas.unbind_all("<MouseWheel>")
+            ventana_ayuda.destroy()
+        
+        ventana_ayuda.protocol("WM_DELETE_WINDOW", on_closing)
 
 
 # --- Punto de Entrada de la Aplicación ---
