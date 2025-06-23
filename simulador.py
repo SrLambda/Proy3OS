@@ -122,15 +122,19 @@ class Simulador:
             return
 
         # Obtener procesos ordenados según el algoritmo
-        procesos_ordenados = self.planificador.planificar(self.cola_listos, self.algoritmo_planificacion)
-
-        # Asignar procesos a núcleos libres
+        procesos_ordenados = self.planificador.planificar(self.cola_listos, self.algoritmo_planificacion)        # Asignar procesos a núcleos libres
         for i, nucleo in enumerate(self.cpu.nucleos):
             if nucleo is None and procesos_ordenados:
                 proceso = procesos_ordenados.pop(0)
                 self.cpu.asignar_proceso(i, proceso)
                 proceso.set_estado("ejecutando")
                 proceso.reiniciar_quantum()  # Reiniciar quantum al asignar
+                
+                # REGISTRO DE TIEMPO DE PRIMERA EJECUCIÓN
+                if proceso.tiempo_primer_ejecucion is None:
+                    proceso.tiempo_primer_ejecucion = self.reloj_global
+                    print(f"📊 Proceso {proceso.pid} inicia por primera vez en tiempo {self.reloj_global}")
+                
                 self.cola_listos.remove(proceso)
                 print(f"🖥️  Proceso {proceso.pid} asignado al núcleo {i} (Algoritmo: {self.algoritmo_planificacion})")
 

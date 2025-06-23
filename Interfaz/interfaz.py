@@ -908,6 +908,14 @@ class SimuladorUI:
         # Obtener estadísticas del simulador
         estadisticas = self.simulador.calcular_estadisticas()
         
+        # DEBUG: Imprimir estadísticas para verificar
+        print(f"🔍 DEBUG - Estadísticas obtenidas:")
+        print(f"   Procesos terminados: {len(self.simulador.procesos_terminados)}")
+        print(f"   Estadísticas de procesos: {len(estadisticas.get('procesos', []))}")
+        if estadisticas.get('procesos'):
+            for proc in estadisticas['procesos']:
+                print(f"   - {proc.get('nombre', 'Sin nombre')} (PID {proc.get('pid', '?')})")
+        
         # Crear ventana de estadísticas
         ventana = tk.Toplevel(self.master)
         ventana.title("Estadísticas de Simulación")
