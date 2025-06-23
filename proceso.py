@@ -10,16 +10,19 @@ class Proceso:
         self.tiempo_restante = duracion # Tiempo restante de ejecución
         self.tamano_memoria = tamano_memoria # Tamaño en memoria que requiere el proceso
         self.estado = "nuevo"  # Estado actual del proceso (Nuevo, Listo, Ejecutando, Esperando, Terminado)
-        self.tiempo_inicio_ejecucion = -1 # Para calcular tiempo de respuesta
-        self.tiempo_finalizacion = -1 # Para calcular tiempo de retorno
-        self.tiempo_espera = 0 # Para calcular tiempo de espera
-        self.tiempo_en_cpu = 0 # Tiempo que el proceso ha estado en CPU
-        self.tiempo_quantum_actual = 0 # Tiempo ejecutado en el quantum actual (para Round Robin)
-        self.bloques_memoria_asignados = [] # Lista de bloques de memoria asignados
+        
+        # Atributos para estadísticas (INICIALIZADOS)
+        self.tiempo_primer_ejecucion = None   # Tiempo de primera ejecución
+        self.tiempo_finalizacion = None       # Tiempo de finalización
+        self.tiempo_espera = 0                # Tiempo acumulado esperando
+        self.tiempo_en_cpu = 0                # Tiempo en ejecución
+        self.tiempo_quantum_actual = 0        # Tiempo en quantum actual
+        self.bloques_memoria_asignados = []
         self.color = self.generar_color()
 
     def __repr__(self):
         return f"P{self.pid} (Estado: {self.estado}, Dur: {self.duracion}, Rest: {self.tiempo_restante}, Mem: {self.tamano_memoria}), Color: {self.color}"
+    
 
     def actualizar_tiempo_restante(self, tiempo_unidad):
         """Actualiza el tiempo restante del proceso"""

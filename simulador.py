@@ -11,6 +11,7 @@ class Simulador:
         self.quantum = 2  # Quantum más corto para ver desalojos
         self.reloj_global = 0
         self.simulacion_activa = True
+        self.proximo_pid=1 # Para asignar PIDs únicos a los procesos
 
         # Listas para gestionar procesos
         self.procesos_nuevos = []
@@ -20,6 +21,12 @@ class Simulador:
         # Algoritmo de planificación actual
         self.algoritmo_planificacion = "SJF"
 
+    
+    def obtener_proximo_pid(self):
+        """Obtiene el próximo PID secuencial"""
+        pid_actual = self.proximo_pid
+        self.proximo_pid += 1
+        return pid_actual
 
     def todos_los_procesos(self):
         """
@@ -37,7 +44,10 @@ class Simulador:
         )
 
     def agregar_proceso(self, proceso):
-        """Agrega un proceso al sistema"""
+        """Agrega un proceso al sistema asignando PID automático"""
+        # Asignar PID solo si no tiene uno
+        if proceso.pid is None:
+            proceso.pid = self.obtener_proximo_pid()
         proceso.set_estado("nuevo")
         self.procesos_nuevos.append(proceso)  # Cambiar cola_nuevos por procesos_nuevos
         print(f"✅ Proceso {proceso.pid} agregado al sistema (Memoria: {proceso.tamano_memoria // (1024**2)}MB)")
@@ -81,13 +91,31 @@ class Simulador:
         self.reloj_global += 1
 
         # Ahora terminar después de 10 pasos para ver procesos terminando
-        if self.reloj_global >= 15:
-            print("🏁 Simulación terminada (15 pasos completados)")
+        if not self.hay_procesos_pendientes():
+            print(f"🏁 Simulación terminada (todos los procesos completados en tiempo {self.reloj_global})")
             return False
-
+    
         return True
 
-
+    def hay_procesos_pendientes(self):
+        """Verifica si hay procesos que aún no han terminado"""
+        # 1. Procesos nuevos que aún no han llegado o no tienen memoria asignada
+        if self.procesos_nuevos:
+            return True
+        
+        # 2. Procesos en cola de listos
+        if self.cola_listos:
+            return True
+        
+        # 3. Procesos en CPU que no han terminado
+        for proceso in self.cpu.nucleos:
+            if proceso and proceso.estado != "terminado":
+                return True
+        
+        # 4. Si no hay ninguno de los anteriores, todos los procesos han terminado
+        return False
+    
+    
     def planificar_cpu(self):
         """Planifica procesos en núcleos libres usando el algoritmo seleccionado"""
         if not self.cola_listos:
@@ -123,22 +151,53 @@ class Simulador:
                     print(f"Núcleo {i}: Libre")
 
     def calcular_estadisticas(self):
-        """Calcula estadísticas del sistema"""
-        # Calcular todos los procesos del sistema
-        todos_los_procesos = (self.procesos_nuevos + self.cola_listos +
-                             [p for p in self.cpu.nucleos if p] + self.procesos_terminados)
-
-        return {
-            "total_procesos": len(todos_los_procesos),
-            "procesos_nuevos": len(self.procesos_nuevos),
-            "procesos_listos": len(self.cola_listos),
-            "procesos_ejecutando": sum(1 for nucleo in self.cpu.nucleos if nucleo),
-            "procesos_terminados": len(self.procesos_terminados),
-            "tiempo_promedio_retorno": 0,
-            "tiempo_promedio_respuesta": 0,
-            "tiempo_promedio_espera": 0,
-            "tiempo_total_simulacion": self.reloj_global
+        """Calcula estadísticas detalladas por proceso"""
+        estadisticas = {
+            "procesos": [],
+            "promedios": {}
         }
+
+        if not self.procesos_terminados:
+            return estadisticas
+
+        tiempos_espera = []
+        tiempos_respuesta = []
+        tiempos_retorno = []
+
+        for proceso in self.procesos_terminados:
+            # Verificar que tenga los atributos necesarios
+            if not hasattr(proceso, 'tiempo_primer_ejecucion') or not hasattr(proceso, 'tiempo_finalizacion'):
+                continue
+            if proceso.tiempo_primer_ejecucion is None or proceso.tiempo_finalizacion is None:
+                continue
+
+            tiempo_retorno = proceso.tiempo_finalizacion - proceso.tiempo_llegada
+            tiempo_respuesta = proceso.tiempo_primer_ejecucion - proceso.tiempo_llegada
+            tiempo_espera = proceso.tiempo_espera if hasattr(proceso, 'tiempo_espera') else tiempo_retorno - proceso.duracion
+
+            estadisticas["procesos"].append({
+                "pid": proceso.pid,
+                "nombre": proceso.nombre,
+                "tiempo_espera": tiempo_espera,
+                "tiempo_respuesta": tiempo_respuesta,
+                "tiempo_retorno": tiempo_retorno
+            })
+
+            tiempos_espera.append(tiempo_espera)
+            tiempos_respuesta.append(tiempo_respuesta)
+            tiempos_retorno.append(tiempo_retorno)
+
+        # Calcular promedios
+        if estadisticas["procesos"]:
+            estadisticas["promedios"] = {
+                "tiempo_espera": sum(tiempos_espera) / len(tiempos_espera),
+                "tiempo_respuesta": sum(tiempos_respuesta) / len(tiempos_respuesta),
+                "tiempo_retorno": sum(tiempos_retorno) / len(tiempos_retorno)
+            }
+
+        return estadisticas
+
+
 
     def _procesar_llegadas(self):
         """Procesa los procesos que llegan en el tiempo actual"""
@@ -155,39 +214,56 @@ class Simulador:
                     print(f"❌ No hay memoria suficiente para el proceso {proceso.pid}")
 
     def _avanzar_ejecucion(self):
-        """Avanza la ejecución de procesos en los núcleos y maneja desalojos"""
-        procesos_a_desalojar = []
-
-        # Verificar procesos en ejecución ANTES de avanzar tiempo de CPU
-        for i, proceso in enumerate(self.cpu.nucleos):
-            if proceso:
-                # Incrementar quantum ANTES de verificar terminación
-                proceso.tiempo_quantum_actual += 1
-
-                if proceso.tiempo_restante <= 0:
-                    # Proceso terminó completamente
-                    print(f"🔓 Liberando memoria del proceso {proceso.pid}")
-                    self.memoria.liberar_memoria(proceso)
-                    print(f"🏁 Proceso {proceso.pid} terminado y liberado del núcleo {i}")
-                    proceso.set_estado("terminado")
-                    self.procesos_terminados.append(proceso)
-                    procesos_a_desalojar.append((i, None))
-
-                elif (self.algoritmo_planificacion == "RR" and
-                      proceso.tiempo_quantum_actual >= self.quantum):
-                    # Desalojo por quantum en Round Robin
-                    print(f"⏰ Proceso {proceso.pid} desalojado por quantum (quantum={self.quantum})")
-                    proceso.reiniciar_quantum()
-                    proceso.set_estado("listo")
-                    self.cola_listos.append(proceso)
-                    procesos_a_desalojar.append((i, None))
-
-        # Avanzar tiempo de CPU DESPUÉS de verificar quantum
+        nucleos_a_desalojar = []
+        
+        # PRIMERO: Avanzar el tiempo de CPU (disminuye tiempo_restante)
         self.cpu.avanzar_tiempo(1)
-
-        # Ejecutar desalojos
-        for nucleo, _ in procesos_a_desalojar:
-            self.cpu.desalojar_proceso(nucleo)
+        
+        # SEGUNDO: Verificar cada núcleo después de avanzar el tiempo
+        for i, proceso in enumerate(self.cpu.nucleos):
+            if proceso is None:
+                continue
+                
+            # Incrementar el tiempo de quantum actual
+            proceso.tiempo_quantum_actual += 1
+            
+            # Verificar si el proceso ha terminado (tiempo restante llegó a 0)
+            if proceso.tiempo_restante <= 0:
+                print(f"✅ Proceso {proceso.pid} terminado en núcleo {i}")
+                
+                # Marcar el proceso como terminado
+                proceso.set_estado("terminado")
+                proceso.tiempo_finalizacion = self.reloj_global
+                
+                # Liberar memoria del proceso
+                self.memoria.liberar_memoria(proceso)
+                
+                # Mover el proceso a la lista de terminados
+                self.procesos_terminados.append(proceso)
+                
+                # Desalojar el núcleo
+                nucleos_a_desalojar.append(i)
+                
+            # Verificar si en Round Robin se cumple el quantum (solo si no ha terminado)
+            elif (self.algoritmo_planificacion == "RR" and 
+                proceso.tiempo_quantum_actual >= self.quantum):
+                print(f"⏱️ Proceso {proceso.pid} desalojado por quantum en núcleo {i}")
+                
+                # Cambiar estado a listo
+                proceso.set_estado("listo")
+                
+                # Reiniciar el quantum del proceso
+                proceso.reiniciar_quantum()
+                
+                # Mover el proceso a la cola de listos
+                self.cola_listos.append(proceso)
+                
+                # Desalojar el núcleo
+                nucleos_a_desalojar.append(i)
+        
+        # TERCERO: Desalojar los núcleos marcados
+        for i in nucleos_a_desalojar:
+            self.cpu.desalojar_proceso(i)
 
     def _verificar_procesos_terminados(self):
         """Verifica y procesa procesos que han terminado"""

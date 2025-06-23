@@ -30,6 +30,4 @@ class CPU:
     def avanzar_tiempo(self, tiempo_unidad):
         for i in range(self.num_nucleos):
             if self.nucleos[i] is not None:
-                self.nucleos[i].actualizar_tiempo_restante(tiempo_unidad)
-            else:
-                self.tiempo_ocioso[i] += tiempo_unidad
+                self.nucleos[i].tiempo_restante = max(0, self.nucleos[i].tiempo_restante - tiempo_unidad)
