@@ -1,3 +1,0 @@
-# Dependencias
-## PYTHON
-tkinter - pillow
