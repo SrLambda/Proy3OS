@@ -8,17 +8,16 @@ from tkinter import messagebox
 
 import proceso
 
-# Agregar el directorio padre al path para importar las clases del simulador
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PIL import Image, ImageOps, ImageTk
 from simulador import Simulador
 from proceso import Proceso
 
-# =========================================================
 
 
-# --- CLASE DE PRUEBA PARA EL BACKEND DE MEMORIA (COMENTADA PARA USAR EL SIMULADOR REAL) ---
+
 class GestionMemoria_Old:
     def __init__(self, ram_mb=2048, swap_mb=4096, block_size_mb=64):
         num_bloques_ram = ram_mb // block_size_mb
@@ -69,9 +68,7 @@ class GestionMemoria_Old:
                 bloque["proceso_id"] = None
 
 
-# =========================================================
 
-# --- ADAPTADOR PARA SINCRONIZAR CON EL SIMULADOR REAL ---
 class AdaptadorMemoriaUI:
     """
     Clase que adapta los datos del simulador real para la interfaz gráfica
@@ -84,7 +81,7 @@ class AdaptadorMemoriaUI:
             "#A133FF", "#33FFA1", "#FFC300", "#DAF7A6",
             "#FF8C00", "#8A2BE2", "#20B2AA", "#DC143C"
         ]
-        self.block_size_mb = 64  # Tamaño de bloque para visualización
+        self.block_size_mb = 64 
 
     def _asignar_color_proceso(self, pid):
         """Asigna un color único a cada proceso sin repetir"""
@@ -105,7 +102,7 @@ class AdaptadorMemoriaUI:
         # Crear array de bloques para la UI
         bloques_ui = [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_ui)]
 
-        # Mapear bloques ocupados del simulador a bloques UI
+
         for bloque in memoria.bloques_ocupados:
             inicio_mb = bloque.inicio // (1024 * 1024)
             tamano_mb = bloque.tamano // (1024 * 1024)
@@ -113,10 +110,9 @@ class AdaptadorMemoriaUI:
             inicio_bloque_ui = inicio_mb // self.block_size_mb
             fin_bloque_ui = (inicio_mb + tamano_mb) // self.block_size_mb
 
-            # Asegurar que no excedamos el límite
+   
             fin_bloque_ui = min(fin_bloque_ui, num_bloques_ui)
 
-            # Marcar bloques como ocupados
             for i in range(inicio_bloque_ui, fin_bloque_ui):
                 if i < len(bloques_ui):
                     bloques_ui[i]["estado"] = "ocupado"
@@ -131,10 +127,9 @@ class AdaptadorMemoriaUI:
         total_swap_mb = memoria.tamano_swap // (1024 * 1024)
         num_bloques_swap_ui = total_swap_mb // self.block_size_mb
 
-        # Crear array de bloques SWAP para la UI
+
         bloques_swap_ui = [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_swap_ui)]
 
-        # Mapear bloques ocupados de SWAP del simulador a bloques UI
         for bloque in memoria.bloques_swap_ocupados:
             inicio_mb = bloque.inicio // (1024 * 1024)
             tamano_mb = bloque.tamano // (1024 * 1024)
@@ -142,10 +137,10 @@ class AdaptadorMemoriaUI:
             inicio_bloque_ui = inicio_mb // self.block_size_mb
             fin_bloque_ui = (inicio_mb + tamano_mb) // self.block_size_mb
 
-            # Asegurar que no excedamos el límite
+     
             fin_bloque_ui = min(fin_bloque_ui, num_bloques_swap_ui)
 
-            # Marcar bloques como ocupados
+       
             for i in range(inicio_bloque_ui, fin_bloque_ui):
                 if i < len(bloques_swap_ui):
                     bloques_swap_ui[i]["estado"] = "ocupado"
@@ -165,7 +160,6 @@ class AdaptadorMemoriaUI:
         return uso['swap']['porcentaje_uso']
 
 
-# =========================================================
 
 
 class SimuladorUI:
@@ -178,34 +172,34 @@ class SimuladorUI:
         Constructor de la clase. Inicializa la ventana principal y sus componentes.
         :param master: La ventana raíz de Tkinter (tk.Tk()).
         """
-        self.master = master        # --- Configuración de la Ventana Principal ---
+        self.master = master     
         self.master.title("Simulador de Ejecución de Procesos")
         self.master.geometry("1280x720")
         self.master.configure(bg="black")
         self.master.resizable(False, False)
 
-        # --- Inicializar Simulador Real ---
+     
         self.simulador = Simulador(num_nucleos=2)
         self.adaptador_memoria = AdaptadorMemoriaUI(self.simulador)
 
-        # Estado de la simulación
+
         self.simulacion_iniciada = False
-        self.procesos_ejemplo = []        # --- Inicializar Layout ---
+        self.procesos_ejemplo = []       
         self._crear_layout()
 
         self._crear_widgets()
 
-        # --- TEST: Crear algunos procesos de ejemplo ---
+  
         self._crear_procesos_ejemplo()
 
-        # --- Actualizar UI después de un breve retraso ---
+ 
         self.master.after(100, self._actualizar_ui_memoria)
 
     def iniciar(self):
         """
         Método para iniciar el bucle principal de la aplicación.
         """
-        self.master.mainloop()    # --- NUEVOS MÉTODOS PARA DIBUJAR LA MEMORIA ---
+        self.master.mainloop()   
     def _dibujar_barra_memoria(self, canvas, memoria_data, procesos_colores):
         canvas.delete("all")
         ancho_canvas = canvas.winfo_width()
@@ -222,22 +216,22 @@ class SimuladorUI:
             y0 = 0
             y1 = alto_canvas
 
-            color = "#424242"  # Color por defecto para bloques libres
-            outline_color = "#555555"  # Color del borde del bloque
+            color = "#424242"  
+            outline_color = "#555555" 
 
             if bloque["estado"] == "ocupado":
                 proceso_id = bloque["proceso_id"]
                 if proceso_id in procesos_colores:
                     color = procesos_colores[proceso_id]["color"]
                 else:
-                    color = "red"  # Color de error si el proceso no está registrado
+                    color = "red"  
 
             canvas.create_rectangle(
                 x0, y0, x1, y1, fill=color, outline=outline_color, width=2
             )
 
     def _actualizar_ui_memoria(self):
-        # Esta función será el punto central para refrescar las barras usando el simulador real
+        
         datos_ram = self.adaptador_memoria.obtener_datos_memoria_ram()
         datos_swap = self.adaptador_memoria.obtener_datos_swap()
 
@@ -250,7 +244,7 @@ class SimuladorUI:
             self.canvas_swap,
             datos_swap,
             self.adaptador_memoria.procesos_colores,
-        )        # Actualizar porcentajes reales
+        )      
         porcentaje_ram = self.adaptador_memoria.obtener_porcentaje_uso_ram()
         porcentaje_swap = self.adaptador_memoria.obtener_porcentaje_uso_swap()
 
@@ -259,31 +253,31 @@ class SimuladorUI:
 
 
     def _actualizar_tabla_procesos(self):
-        # Limpiar tabla existente
+      
         for item in self.tabla_procesos.get_children():
             self.tabla_procesos.delete(item)
 
-        # Obtener todos los procesos del simulador
+        
         todos_procesos = self.simulador.todos_los_procesos()
 
-        # Insertar procesos en la tabla
+     
         for proceso in todos_procesos:
-            # Asegurar que el proceso tenga un nombre
+   
             nombre_proceso = getattr(proceso, 'nombre', f'Proceso {proceso.pid}')
 
-            # Convertir memoria a MB
+        
             memoria_mb = proceso.tamano_memoria // (1024 * 1024)
 
-            # Insertar en la tabla
+      
             self.tabla_procesos.insert("", "end", values=(
                 proceso.pid,
                 nombre_proceso,
-                proceso.estado.capitalize(),  # Mostrar con primera letra mayúscula
+                proceso.estado.capitalize(),  
                 proceso.duracion,
                 memoria_mb
             ), tags=(proceso.pid,))
             # Obtener el mismo color que se usa en la memoria RAM
-            pid_tag = f"P{proceso.pid}"  # Asegúrate de que coincida con lo usado en AdaptadorMemoriaUI
+            pid_tag = f"P{proceso.pid}" 
 
             # Asignar color coherente si existe
             color_proceso = self.adaptador_memoria.procesos_colores.get(pid_tag, {}).get("color", "#FFFFFF")
@@ -295,17 +289,14 @@ class SimuladorUI:
         Crea y posiciona los 3 frames principales que dividen la ventana.
         Usamos el gestor de geometría 'grid' con pesos para control proporcional.
         """
-        # --- 1. Configurar el grid del contenedor principal (la ventana) ---
-        # Solo tenemos una columna, la hacemos expandible.
+      
         self.master.grid_columnconfigure(0, weight=1)
 
-        # Configuramos el 'peso' de cada fila para que ocupe un espacio proporcional.
-        # La suma total de pesos es 100 (10 + 20 + 70).
-        self.master.grid_rowconfigure(0, weight=5)  # Fila 0 obtiene  5/100 del espacio
-        self.master.grid_rowconfigure(1, weight=25)  # Fila 1 obtiene 25/100 del espacio
-        self.master.grid_rowconfigure(2, weight=70)  # Fila 2 obtiene 70/100 del espacio
+     
+        self.master.grid_rowconfigure(0, weight=5)  
+        self.master.grid_rowconfigure(1, weight=25) 
+        self.master.grid_rowconfigure(2, weight=70)  
 
-        # --- 2. Crear y posicionar los frames en el grid ---
         # --- Fila 1 (Superior) ---
         self.frame_superior = tk.Frame(self.master, bg="#212121")
         self.frame_superior.grid(row=0, column=0, sticky="nsew")
@@ -365,8 +356,7 @@ class SimuladorUI:
         self.intermedio_2_2.grid(row=0, column=1, sticky="nsew", padx=(5, 10))
         self.intermedio_2_2.grid_propagate(False)
 
-        # --- 3. Subdividir el frame inferior en dos columnas (40% y 60%) ---
-        # Configurar el grid INTERNO de self.frame_inferior
+      
         self.frame_inferior.grid_rowconfigure(0, weight=1)
         self.frame_inferior.grid_columnconfigure(
             0, weight=60
@@ -384,7 +374,7 @@ class SimuladorUI:
 
         self.frame_inf_derecho = tk.Frame(
             self.frame_inferior, bg="#616161"
-        )  # Un gris un poco más claro para la derecha
+        )  # Un gris claro para la derecha
         self.frame_inf_derecho.grid(row=0, column=1, sticky="nsew")
         self.frame_inf_derecho.grid_propagate(False)
 
@@ -450,7 +440,7 @@ class SimuladorUI:
         font_form_opt = font.Font(family="Helvetica", size=15)
         font_form_cuantum = font.Font(family="Helvetica", size=12)
         font_memoria = font.Font(family="Helvetica", size=12, weight="bold")        # --- Widgets en Frame Superior (Fila 1) ---
-        # Obtener la ruta correcta de la imagen
+
         ruta_imagen = os.path.join(os.path.dirname(__file__), "boton_ayuda.png")
         imagen_ayuda_original = Image.open(ruta_imagen)
         imagen_rgba = imagen_ayuda_original.convert("RGBA")
@@ -467,7 +457,7 @@ class SimuladorUI:
 
         # 4. Añadir la transparencia original a la imagen de colores invertidos
         imagen_negativo = inverted_rgb
-        imagen_negativo.putalpha(alpha_channel)        # Redimensionamos la imagen final ya procesada
+        imagen_negativo.putalpha(alpha_channel)      
         imagen_ayuda_redimensionada = imagen_negativo.resize((32, 32), Image.LANCZOS)
         self.imagen_ayuda_tk = ImageTk.PhotoImage(imagen_ayuda_redimensionada)
         
@@ -485,8 +475,7 @@ class SimuladorUI:
         self.boton_ayuda.image = self.imagen_ayuda_tk
         self.boton_ayuda.pack(side="left", padx=10, pady=10)
 
-        # --- Widgets en Frame Intermedio (Fila 2) ---
-        # Widgets para RAM
+
         label_ram = tk.Label(
             self.intermedio_1_1, text="RAM", fg="white", bg="#323232", font=font_memoria
         )
@@ -530,7 +519,7 @@ class SimuladorUI:
         self.canvas_swap.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         self.label_swap_porcentaje.grid(row=0, column=1, sticky="e")
 
-        # --- Widgets en Frame 3.1.1 (Formulario Algoritmo) ---
+
 
         # Creamos un frame contenedor para centrar el formulario
         form_container = tk.Frame(self.frame_3_1_1, bg="#4a4a4a")
@@ -694,9 +683,7 @@ class SimuladorUI:
         self.tabla_procesos.column("Nombre", width=120, anchor="w")
         self.tabla_procesos.column("Estado", width=80, anchor="center")
         self.tabla_procesos.column("Duración", width=70, anchor="center")
-        self.tabla_procesos.column("Memoria", width=90, anchor="center")
-
-        # Añadir scrollbar
+        self.tabla_procesos.column("Memoria", width=90, anchor="center")        # Añadir scrollbar
         scrollbar = ttk.Scrollbar(
             self.frame_inf_derecho,
             orient="vertical",
@@ -704,9 +691,29 @@ class SimuladorUI:
         )
         self.tabla_procesos.configure(yscrollcommand=scrollbar.set)
 
-        # Empaquetar
+        # Crear frame para botones de la tabla
+        self.frame_botones_tabla = tk.Frame(self.frame_inf_derecho, bg="#616161")
+        
+        # Botón eliminar proceso
+        self.boton_eliminar = tk.Button(
+            self.frame_botones_tabla,
+            text="Eliminar Proceso",
+            bg="#c62828",  # Rojo para eliminar
+            fg="white",
+            activebackground="#d32f2f",
+            font=('Helvetica', 10, 'bold'),
+            bd=0,
+            cursor="hand2",
+            command=self._eliminar_proceso_seleccionado
+        )
+        
+        # Empaquetar botones
+        self.boton_eliminar.pack(side="left", padx=5, pady=5)
+        
+        # Empaquetar todo
+        self.frame_botones_tabla.pack(fill="x", padx=10, pady=(0,5))
         scrollbar.pack(side="right", fill="y")
-        self.tabla_procesos.pack(fill="both", expand=True, padx=10, pady=10)
+        self.tabla_procesos.pack(fill="both", expand=True, padx=10, pady=(5,10))
 
 
     def _finalizar_simulacion(self):
@@ -735,6 +742,69 @@ class SimuladorUI:
 
 
         print(f"➕ Proceso P{pid} agregado - Memoria: {nuevo_proceso.tamano_memoria//(1024*1024)}MB, Duración: {nuevo_proceso.duracion}")
+
+    def _eliminar_proceso_seleccionado(self):
+        """Eliminar el proceso seleccionado de la tabla"""
+        seleccion = self.tabla_procesos.selection()
+        
+        if not seleccion:
+            messagebox.showwarning("Sin selección", "Por favor selecciona un proceso para eliminar")
+            return
+        
+        # Obtener el PID del proceso seleccionado
+        item = seleccion[0]
+        valores = self.tabla_procesos.item(item, 'values')
+        pid_seleccionado = int(valores[0])
+        nombre_proceso = valores[1]
+        estado_proceso = valores[2]
+        
+        # Verificar que el proceso no esté ejecutándose
+        if estado_proceso in ["Ejecutando", "En CPU"]:
+            messagebox.showerror("Error", f"No se puede eliminar el proceso '{nombre_proceso}' porque está ejecutándose")
+            return
+        
+        # Confirmar eliminación
+        respuesta = messagebox.askyesno("Confirmar eliminación", 
+                                       f"¿Estás seguro de eliminar el proceso '{nombre_proceso}' (PID: {pid_seleccionado})?")
+        
+        if not respuesta:
+            return
+        
+        # Buscar y eliminar el proceso del simulador
+        proceso_eliminado = False
+        
+        # Buscar en procesos nuevos
+        for i, proceso in enumerate(self.simulador.procesos_nuevos):
+            if proceso.pid == pid_seleccionado:
+                self.simulador.procesos_nuevos.pop(i)
+                proceso_eliminado = True
+                break
+        
+        # Buscar en cola de listos
+        if not proceso_eliminado:
+            for i, proceso in enumerate(self.simulador.cola_listos):
+                if proceso.pid == pid_seleccionado:
+                    # Liberar memoria del proceso
+                    self.simulador.memoria.liberar_memoria(proceso)
+                    self.simulador.cola_listos.pop(i)
+                    proceso_eliminado = True
+                    break
+        
+        # Buscar en procesos terminados
+        if not proceso_eliminado:
+            for i, proceso in enumerate(self.simulador.procesos_terminados):
+                if proceso.pid == pid_seleccionado:
+                    self.simulador.procesos_terminados.pop(i)
+                    proceso_eliminado = True
+                    break
+        
+        if proceso_eliminado:
+            # Actualizar la tabla
+            self._actualizar_tabla_procesos()
+            print(f"🗑️ Proceso P{pid_seleccionado} '{nombre_proceso}' eliminado exitosamente")
+            messagebox.showinfo("Proceso eliminado", f"El proceso '{nombre_proceso}' ha sido eliminado")
+        else:
+            messagebox.showerror("Error", f"No se pudo encontrar el proceso con PID {pid_seleccionado}")
 
     def _abrir_ventana_agregar_proceso(self):
         ventana = tk.Toplevel(self.master)
