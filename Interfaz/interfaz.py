@@ -126,19 +126,43 @@ class AdaptadorMemoriaUI:
         return bloques_ui
 
     def obtener_datos_swap(self):
-        """Por ahora retorna SWAP vacío - se puede implementar después"""
-        swap_mb = 4096  # 4GB de SWAP
-        num_bloques_swap = swap_mb // self.block_size_mb
-        return [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_swap)]
+        """Convierte los datos de memoria SWAP del simulador a formato para la UI"""
+        memoria = self.simulador.memoria
+        total_swap_mb = memoria.tamano_swap // (1024 * 1024)
+        num_bloques_swap_ui = total_swap_mb // self.block_size_mb
+
+        # Crear array de bloques SWAP para la UI
+        bloques_swap_ui = [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_swap_ui)]
+
+        # Mapear bloques ocupados de SWAP del simulador a bloques UI
+        for bloque in memoria.bloques_swap_ocupados:
+            inicio_mb = bloque.inicio // (1024 * 1024)
+            tamano_mb = bloque.tamano // (1024 * 1024)
+
+            inicio_bloque_ui = inicio_mb // self.block_size_mb
+            fin_bloque_ui = (inicio_mb + tamano_mb) // self.block_size_mb
+
+            # Asegurar que no excedamos el límite
+            fin_bloque_ui = min(fin_bloque_ui, num_bloques_swap_ui)
+
+            # Marcar bloques como ocupados
+            for i in range(inicio_bloque_ui, fin_bloque_ui):
+                if i < len(bloques_swap_ui):
+                    bloques_swap_ui[i]["estado"] = "ocupado"
+                    bloques_swap_ui[i]["proceso_id"] = f"P{bloque.pid_proceso}"
+                    self._asignar_color_proceso(f"P{bloque.pid_proceso}")
+
+        return bloques_swap_ui
 
     def obtener_porcentaje_uso_ram(self):
         """Calcula el porcentaje de uso de RAM"""
         uso = self.simulador.memoria.obtener_uso_memoria()
-        return uso['porcentaje_uso']
+        return uso['ram']['porcentaje_uso']
 
     def obtener_porcentaje_uso_swap(self):
-        """Retorna 0% para SWAP por ahora"""
-        return 0.0
+        """Calcula el porcentaje de uso de SWAP"""
+        uso = self.simulador.memoria.obtener_uso_memoria()
+        return uso['swap']['porcentaje_uso']
 
 
 # =========================================================

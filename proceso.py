@@ -10,8 +10,7 @@ class Proceso:
         self.tiempo_restante = duracion # Tiempo restante de ejecución
         self.tamano_memoria = tamano_memoria # Tamaño en memoria que requiere el proceso
         self.estado = "nuevo"  # Estado actual del proceso (Nuevo, Listo, Ejecutando, Esperando, Terminado)
-        
-        # Atributos para estadísticas (INICIALIZADOS)
+          # Atributos para estadísticas (INICIALIZADOS)
         self.tiempo_primer_ejecucion = None   # Tiempo de primera ejecución
         self.tiempo_finalizacion = None       # Tiempo de finalización
         self.tiempo_espera = 0                # Tiempo acumulado esperando
@@ -19,9 +18,17 @@ class Proceso:
         self.tiempo_quantum_actual = 0        # Tiempo en quantum actual
         self.bloques_memoria_asignados = []
         self.color = self.generar_color()
+        
+        # Atributos para SWAP
+        self.en_swap = False                  # Indica si el proceso está en SWAP
+        self.bloques_swap_asignados = []      # Bloques en memoria SWAP
+        self.num_swaps_in = 0                 # Veces que ha entrado al SWAP
+        self.num_swaps_out = 0                # Veces que ha salido del SWAP
+        self.tiempo_total_en_swap = 0         # Tiempo acumulado en SWAP
 
     def __repr__(self):
-        return f"P{self.pid} (Estado: {self.estado}, Dur: {self.duracion}, Rest: {self.tiempo_restante}, Mem: {self.tamano_memoria}), Color: {self.color}"
+        swap_info = "SWAP" if self.en_swap else "RAM"
+        return f"P{self.pid} (Estado: {self.estado}, Dur: {self.duracion}, Rest: {self.tiempo_restante}, Mem: {self.tamano_memoria}, Ubicación: {swap_info}), Color: {self.color}"
     
 
     def actualizar_tiempo_restante(self, tiempo_unidad):

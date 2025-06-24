@@ -5,7 +5,7 @@ from planificador import Planificador
 
 class Simulador:
     def __init__(self, num_nucleos=2):
-        self.cpu = CPU(num_nucleos)
+        self.cpu = CPU(num_nucleos)        # Memoria original: 2GB RAM + 4GB SWAP
         self.memoria = Memoria()
         self.planificador = Planificador()
         self.quantum = 2  # Quantum más corto para ver desalojos
@@ -112,9 +112,7 @@ class Simulador:
             if proceso and proceso.estado != "terminado":
                 return True
         
-        # 4. Si no hay ninguno de los anteriores, todos los procesos han terminado
-        return False
-    
+        # 4. Si no hay ninguno de los anteriores, todos los procesos han terminado        return False
     
     def planificar_cpu(self):
         """Planifica procesos en núcleos libres usando el algoritmo seleccionado"""
@@ -122,10 +120,19 @@ class Simulador:
             return
 
         # Obtener procesos ordenados según el algoritmo
-        procesos_ordenados = self.planificador.planificar(self.cola_listos, self.algoritmo_planificacion)        # Asignar procesos a núcleos libres
+        procesos_ordenados = self.planificador.planificar(self.cola_listos, self.algoritmo_planificacion)
+        
+        # Asignar procesos a núcleos libres
         for i, nucleo in enumerate(self.cpu.nucleos):
             if nucleo is None and procesos_ordenados:
                 proceso = procesos_ordenados.pop(0)
+                
+                # Si el proceso está en SWAP, intentar moverlo a RAM
+                if proceso.en_swap:
+                    if not self.mover_proceso_a_ram_si_necesario(proceso):
+                        print(f"⚠️  Proceso {proceso.pid} no se puede ejecutar (permanece en SWAP)")
+                        continue
+                
                 self.cpu.asignar_proceso(i, proceso)
                 proceso.set_estado("ejecutando")
                 proceso.reiniciar_quantum()  # Reiniciar quantum al asignar
@@ -136,7 +143,8 @@ class Simulador:
                     print(f"📊 Proceso {proceso.pid} inicia por primera vez en tiempo {self.reloj_global}")
                 
                 self.cola_listos.remove(proceso)
-                print(f"🖥️  Proceso {proceso.pid} asignado al núcleo {i} (Algoritmo: {self.algoritmo_planificacion})")
+                ubicacion = "SWAP" if proceso.en_swap else "RAM"
+                print(f"🖥️  Proceso {proceso.pid} asignado al núcleo {i} desde {ubicacion} (Algoritmo: {self.algoritmo_planificacion})")
 
     def mostrar_estado(self):
         """Muestra el estado actual del sistema"""
@@ -294,4 +302,57 @@ class Simulador:
         """Configura el algoritmo de planificación (método alternativo)"""
         self.configurar_algoritmo(algoritmo)
 
-    
+    def mover_proceso_a_ram_si_necesario(self, proceso):
+        """Mueve un proceso de SWAP a RAM si está en ejecución y es necesario"""
+        if proceso.en_swap:
+            print(f"🔄 Proceso {proceso.pid} está en SWAP, intentando mover a RAM para ejecución...")
+            if self.memoria._mover_proceso_a_ram(proceso.pid):
+                proceso.en_swap = False
+                proceso.num_swaps_out += 1
+                print(f"✅ Proceso {proceso.pid} movido exitosamente de SWAP a RAM")
+                return True
+            else:
+                print(f"❌ No se pudo mover el proceso {proceso.pid} de SWAP a RAM")
+                return False
+        return True
+
+    def obtener_estadisticas_swap(self):
+        """Obtiene estadísticas detalladas de SWAP"""
+        uso_memoria = self.memoria.obtener_uso_memoria()
+        procesos_en_swap = self.memoria.obtener_procesos_en_swap()
+        
+        return {
+            'procesos_en_swap': len(procesos_en_swap),
+            'lista_procesos_swap': procesos_en_swap,
+            'memoria_swap_usada': uso_memoria['swap']['ocupada'],
+            'memoria_swap_libre': uso_memoria['swap']['libre'],
+            'porcentaje_swap_uso': uso_memoria['swap']['porcentaje_uso'],
+            'total_swaps_in': uso_memoria['estadisticas_swap']['total_swaps_in'],
+            'total_swaps_out': uso_memoria['estadisticas_swap']['total_swaps_out'],
+        }
+
+    def obtener_visualizacion_memoria(self):
+        """Obtiene datos para visualización de memoria RAM y SWAP"""
+        bloques = self.memoria.obtener_todos_los_bloques()
+        uso = self.memoria.obtener_uso_memoria()
+        
+        return {
+            'ram': {
+                'bloques_ocupados': bloques['ram_ocupados'],
+                'bloques_libres': bloques['ram_libres'],
+                'total': uso['ram']['total'],
+                'ocupada': uso['ram']['ocupada'],
+                'libre': uso['ram']['libre'],
+                'porcentaje_uso': uso['ram']['porcentaje_uso']
+            },
+            'swap': {
+                'bloques_ocupados': bloques['swap_ocupados'],
+                'bloques_libres': bloques['swap_libres'],
+                'total': uso['swap']['total'],
+                'ocupada': uso['swap']['ocupada'],
+                'libre': uso['swap']['libre'],
+                'porcentaje_uso': uso['swap']['porcentaje_uso']
+            }
+        }
+
+
