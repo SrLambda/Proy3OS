@@ -2,6 +2,7 @@ import collections
 from cpu import CPU
 from memoria import Memoria
 from planificador import Planificador
+from programa import GestorProgramas
 
 class Simulador:
     def __init__(self, num_nucleos=2):
@@ -17,6 +18,9 @@ class Simulador:
         self.procesos_nuevos = []
         self.cola_listos = []
         self.procesos_terminados = []
+        
+        # Gestor de programas
+        self.gestor_programas = GestorProgramas()
 
         # Algoritmo de planificación actual
         self.algoritmo_planificacion = "SJF"
@@ -306,13 +310,28 @@ class Simulador:
         """Mueve un proceso de SWAP a RAM si está en ejecución y es necesario"""
         if proceso.en_swap:
             print(f"🔄 Proceso {proceso.pid} está en SWAP, intentando mover a RAM para ejecución...")
+            
+            # CORRECCIÓN: Agregar contador de intentos para evitar bucle infinito
+            if not hasattr(proceso, 'intentos_swap_ram'):
+                proceso.intentos_swap_ram = 0
+            
+            proceso.intentos_swap_ram += 1
+            
+            # Si ya intentó muchas veces, marcar como no en SWAP para evitar bucle
+            if proceso.intentos_swap_ram > 5:
+                print(f"⚠️  Proceso {proceso.pid} tiene demasiados intentos fallidos, corrigiendo estado")
+                proceso.en_swap = False
+                proceso.intentos_swap_ram = 0
+                return True
+            
             if self.memoria._mover_proceso_a_ram(proceso.pid):
                 proceso.en_swap = False
                 proceso.num_swaps_out += 1
+                proceso.intentos_swap_ram = 0  # Resetear contador
                 print(f"✅ Proceso {proceso.pid} movido exitosamente de SWAP a RAM")
                 return True
             else:
-                print(f"❌ No se pudo mover el proceso {proceso.pid} de SWAP a RAM")
+                print(f"❌ No se pudo mover el proceso {proceso.pid} de SWAP a RAM (intento {proceso.intentos_swap_ram})")
                 return False
         return True
 
@@ -354,5 +373,91 @@ class Simulador:
                 'porcentaje_uso': uso['swap']['porcentaje_uso']
             }
         }
+
+    # === MÉTODOS PARA GESTIÓN DE PROGRAMAS ===
+    
+    def lanzar_programa(self, nombre_programa, tamano_mb=None, duracion=None):
+        """
+        Lanza un programa al simulador, dividiéndolo automáticamente si es necesario
+        
+        Args:
+            nombre_programa (str): Nombre del programa
+            tamano_mb (int, optional): Tamaño personalizado en MB
+            duracion (int, optional): Duración personalizada
+            
+        Returns:
+            tuple: (programa, lista_procesos_hijos)
+        """
+        try:
+            if tamano_mb is not None and duracion is not None:
+                # Crear programa personalizado
+                programa = self.gestor_programas.crear_programa(
+                    nombre=nombre_programa,
+                    tamano_mb=tamano_mb,
+                    duracion=duracion,
+                    tiempo_llegada=self.reloj_global
+                )
+            else:
+                # Usar programa predefinido
+                programa = self.gestor_programas.crear_programa_predefinido(
+                    nombre_programa=nombre_programa,
+                    tiempo_llegada=self.reloj_global
+                )
+            
+            # Lanzar el programa (lo divide automáticamente)
+            procesos_hijos = self.gestor_programas.lanzar_programa(programa, self)
+            
+            print(f"🚀 Programa '{nombre_programa}' lanzado exitosamente!")
+            print(f"   └─ Generados {len(procesos_hijos)} procesos hijos")
+            
+            return programa, procesos_hijos
+            
+        except Exception as e:
+            print(f"❌ Error al lanzar programa '{nombre_programa}': {e}")
+            return None, []
+    
+    def obtener_programas_disponibles(self):
+        """Retorna lista de programas predefinidos disponibles"""
+        return self.gestor_programas.obtener_programas_disponibles()
+    
+    def obtener_estado_programas(self):
+        """Retorna información detallada de todos los programas lanzados"""
+        programas_info = []
+        for programa in self.gestor_programas.programas:
+            programas_info.append({
+                'nombre': programa.nombre,
+                'tamano_mb': programa.tamano_total_mb,
+                'estado': programa.estado,
+                'total_hijos': programa.total_procesos_hijos,
+                'completados': programa.procesos_completados,
+                'progreso': (programa.procesos_completados / programa.total_procesos_hijos * 100) if programa.total_procesos_hijos > 0 else 0,
+                'detalle': programa.obtener_estado_detallado()
+            })
+        return programas_info
+    
+    def obtener_procesos_por_programa(self):
+        """
+        Retorna un diccionario agrupando procesos por programa padre
+        """
+        procesos_por_programa = {}
+        
+        # Recopilar todos los procesos del sistema
+        todos_los_procesos = (self.procesos_nuevos + self.cola_listos + 
+                            self.cpu.obtener_procesos_en_ejecucion() + 
+                            self.procesos_terminados)
+        
+        for proceso in todos_los_procesos:
+            if proceso.es_proceso_hijo and proceso.programa_padre:
+                nombre_programa = proceso.programa_padre.nombre
+                if nombre_programa not in procesos_por_programa:
+                    procesos_por_programa[nombre_programa] = []
+                procesos_por_programa[nombre_programa].append(proceso)
+            else:
+                # Procesos independientes (no hijos de programas)
+                if "Procesos Individuales" not in procesos_por_programa:
+                    procesos_por_programa["Procesos Individuales"] = []
+                procesos_por_programa["Procesos Individuales"].append(proceso)
+        
+        return procesos_por_programa
 
 

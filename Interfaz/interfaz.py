@@ -96,28 +96,42 @@ class AdaptadorMemoriaUI:
     def obtener_datos_memoria_ram(self):
         """Convierte los datos de memoria del simulador a formato para la UI"""
         memoria = self.simulador.memoria
+        
+        # Calcular bloques UI basado en el tamaño total
         total_mb = memoria.tamano_total // (1024 * 1024)
         num_bloques_ui = total_mb // self.block_size_mb
 
         # Crear array de bloques para la UI
         bloques_ui = [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_ui)]
 
-
-        for bloque in memoria.bloques_ocupados:
-            inicio_mb = bloque.inicio // (1024 * 1024)
-            tamano_mb = bloque.tamano // (1024 * 1024)
-
-            inicio_bloque_ui = inicio_mb // self.block_size_mb
-            fin_bloque_ui = (inicio_mb + tamano_mb) // self.block_size_mb
-
-   
-            fin_bloque_ui = min(fin_bloque_ui, num_bloques_ui)
-
-            for i in range(inicio_bloque_ui, fin_bloque_ui):
-                if i < len(bloques_ui):
-                    bloques_ui[i]["estado"] = "ocupado"
-                    bloques_ui[i]["proceso_id"] = f"P{bloque.pid_proceso}"
-                    self._asignar_color_proceso(f"P{bloque.pid_proceso}")
+        # Usar la información de paginación para llenar los bloques
+        if hasattr(memoria, 'gestor_paginacion') and memoria.gestor_paginacion:
+            paginas_ocupadas = 0
+            procesos_activos = {}
+            
+            # Contar páginas ocupadas por proceso
+            for pagina in memoria.gestor_paginacion.paginas_ram:
+                if pagina.proceso_pid is not None:
+                    paginas_ocupadas += 1
+                    pid_str = f"P{pagina.proceso_pid}"
+                    if pid_str not in procesos_activos:
+                        procesos_activos[pid_str] = 0
+                    procesos_activos[pid_str] += 1
+            
+            # Llenar bloques UI basado en páginas ocupadas
+            bloque_idx = 0
+            for pid_str, num_paginas in procesos_activos.items():
+                self._asignar_color_proceso(pid_str)
+                
+                # Calcular cuántos bloques UI representa este proceso
+                bloques_proceso = (num_paginas * 16) // self.block_size_mb  # 16MB por página
+                bloques_proceso = max(1, bloques_proceso)  # Mínimo 1 bloque
+                
+                for _ in range(min(bloques_proceso, len(bloques_ui) - bloque_idx)):
+                    if bloque_idx < len(bloques_ui):
+                        bloques_ui[bloque_idx]["estado"] = "ocupado"
+                        bloques_ui[bloque_idx]["proceso_id"] = pid_str
+                        bloque_idx += 1
 
         return bloques_ui
 
@@ -127,37 +141,53 @@ class AdaptadorMemoriaUI:
         total_swap_mb = memoria.tamano_swap // (1024 * 1024)
         num_bloques_swap_ui = total_swap_mb // self.block_size_mb
 
-
+        # Crear array de bloques para la UI
         bloques_swap_ui = [{"estado": "libre", "proceso_id": None} for _ in range(num_bloques_swap_ui)]
 
-        for bloque in memoria.bloques_swap_ocupados:
-            inicio_mb = bloque.inicio // (1024 * 1024)
-            tamano_mb = bloque.tamano // (1024 * 1024)
-
-            inicio_bloque_ui = inicio_mb // self.block_size_mb
-            fin_bloque_ui = (inicio_mb + tamano_mb) // self.block_size_mb
-
-     
-            fin_bloque_ui = min(fin_bloque_ui, num_bloques_swap_ui)
-
-       
-            for i in range(inicio_bloque_ui, fin_bloque_ui):
-                if i < len(bloques_swap_ui):
-                    bloques_swap_ui[i]["estado"] = "ocupado"
-                    bloques_swap_ui[i]["proceso_id"] = f"P{bloque.pid_proceso}"
-                    self._asignar_color_proceso(f"P{bloque.pid_proceso}")
+        # Usar la información de paginación para SWAP
+        if hasattr(memoria, 'gestor_paginacion') and memoria.gestor_paginacion:
+            procesos_swap = {}
+            
+            # Contar páginas en SWAP por proceso
+            for pagina in memoria.gestor_paginacion.paginas_swap:
+                if pagina.proceso_pid is not None:
+                    pid_str = f"P{pagina.proceso_pid}"
+                    if pid_str not in procesos_swap:
+                        procesos_swap[pid_str] = 0
+                    procesos_swap[pid_str] += 1
+            
+            # Llenar bloques UI basado en páginas en SWAP
+            bloque_idx = 0
+            for pid_str, num_paginas in procesos_swap.items():
+                self._asignar_color_proceso(pid_str)
+                
+                # Calcular cuántos bloques UI representa este proceso
+                bloques_proceso = (num_paginas * 16) // self.block_size_mb  # 16MB por página
+                bloques_proceso = max(1, bloques_proceso)  # Mínimo 1 bloque
+                
+                for _ in range(min(bloques_proceso, len(bloques_swap_ui) - bloque_idx)):
+                    if bloque_idx < len(bloques_swap_ui):
+                        bloques_swap_ui[bloque_idx]["estado"] = "ocupado"
+                        bloques_swap_ui[bloque_idx]["proceso_id"] = pid_str
+                        bloque_idx += 1
 
         return bloques_swap_ui
 
     def obtener_porcentaje_uso_ram(self):
         """Calcula el porcentaje de uso de RAM"""
-        uso = self.simulador.memoria.obtener_uso_memoria()
-        return uso['ram']['porcentaje_uso']
+        memoria = self.simulador.memoria
+        if hasattr(memoria, 'gestor_paginacion') and memoria.gestor_paginacion:
+            stats = memoria.gestor_paginacion.obtener_estadisticas_paginacion()
+            return stats['uso_ram']
+        return 0.0
 
     def obtener_porcentaje_uso_swap(self):
         """Calcula el porcentaje de uso de SWAP"""
-        uso = self.simulador.memoria.obtener_uso_memoria()
-        return uso['swap']['porcentaje_uso']
+        memoria = self.simulador.memoria
+        if hasattr(memoria, 'gestor_paginacion') and memoria.gestor_paginacion:
+            stats = memoria.gestor_paginacion.obtener_estadisticas_paginacion()
+            return stats['uso_swap']
+        return 0.0
 
 
 
@@ -250,6 +280,49 @@ class SimuladorUI:
 
         self.label_ram_porcentaje.config(text=f"{porcentaje_ram:.1f} %")
         self.label_swap_porcentaje.config(text=f"{porcentaje_swap:.1f} %")
+        
+        # Actualizar métricas avanzadas si están disponibles
+        self._actualizar_metricas_avanzadas()
+        
+        # Programar próxima actualización
+        self.master.after(500, self._actualizar_ui_memoria)
+
+    def _actualizar_metricas_avanzadas(self):
+        """Actualiza las métricas avanzadas de memoria y paginación"""
+        try:
+            if hasattr(self.simulador.memoria, 'obtener_estadisticas_avanzadas'):
+                stats = self.simulador.memoria.obtener_estadisticas_avanzadas()
+                
+                # Actualizar métricas de rendimiento
+                rendimiento = stats.get('rendimiento', {})
+                self.label_page_faults.config(text=f"Page Faults: {rendimiento.get('total_page_faults', 0)}")
+                self.label_hits.config(text=f"Hits: {rendimiento.get('total_hits', 0)}")
+                self.label_hit_ratio.config(text=f"Hit Ratio: {rendimiento.get('hit_ratio_global', 0.0):.1f}%")
+                
+                # Actualizar métricas del algoritmo
+                algoritmo_stats = stats.get('algoritmo_reemplazo', {})
+                self.label_algoritmo_actual.config(text=f"Algoritmo: {algoritmo_stats.get('algoritmo', 'N/A')}")
+                self.label_reemplazos.config(text=f"Reemplazos: {algoritmo_stats.get('reemplazos', 0)}")
+                
+                # Actualizar estado de páginas
+                memoria_stats = stats.get('memoria', {})
+                ram_stats = memoria_stats.get('ram', {})
+                if ram_stats:
+                    ocupadas = ram_stats.get('ocupadas', 0)
+                    total = ram_stats.get('total_paginas', 64)
+                    self.label_paginas_activas.config(text=f"Páginas en RAM: {ocupadas}/{total}")
+                
+            else:
+                # Fallback a métricas básicas
+                self.label_page_faults.config(text="Page Faults: N/A")
+                self.label_hits.config(text="Hits: N/A") 
+                self.label_hit_ratio.config(text="Hit Ratio: N/A")
+                self.label_algoritmo_actual.config(text="Algoritmo: Básico")
+                self.label_reemplazos.config(text="Reemplazos: N/A")
+                self.label_paginas_activas.config(text="Páginas en RAM: N/A")
+                
+        except Exception as e:
+            print(f"⚠️ Error actualizando métricas avanzadas: {e}")
 
 
     def _actualizar_tabla_procesos(self):
@@ -644,8 +717,100 @@ class SimuladorUI:
             cursor="hand2",
             command=self._abrir_ventana_agregar_proceso
         )
-        # Para este botón más grande, podemos usar una proporción mayor, ej: 90%        self.boton_agregar.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.9)
-        self.boton_agregar.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.9)
+        # Ajustar el botón para que sea más pequeño y deje espacio al panel de configuración
+        self.boton_agregar.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.25)
+
+        # --- Panel de Configuración Avanzada de Memoria ---
+        self.frame_config_avanzada = tk.Frame(self.frame_3_1_3, bg="#2d2d2d")
+        self.frame_config_avanzada.place(relx=0.05, rely=0.32, relwidth=0.9, relheight=0.63)
+        
+        # Título del panel
+        tk.Label(
+            self.frame_config_avanzada,
+            text="🧠 Configuración Avanzada",
+            bg="#2d2d2d",
+            fg="white",
+            font=font_form_cuantum
+        ).pack(pady=(5, 10))
+        
+        # Frame para algoritmos de reemplazo
+        frame_algoritmos = tk.Frame(self.frame_config_avanzada, bg="#2d2d2d")
+        frame_algoritmos.pack(fill="x", padx=10, pady=5)
+        
+        tk.Label(
+            frame_algoritmos,
+            text="Algoritmo de Reemplazo:",
+            bg="#2d2d2d",
+            fg="white",
+            font=('Helvetica', 9)
+        ).pack(anchor="w")
+        
+        # Variable para el algoritmo seleccionado
+        self.algoritmo_reemplazo = tk.StringVar(value="LRU")
+        
+        # Radio buttons para algoritmos
+        frame_radios = tk.Frame(frame_algoritmos, bg="#2d2d2d")
+        frame_radios.pack(fill="x", pady=2)
+        
+        algoritmos = [("FIFO", "FIFO"), ("LRU", "LRU"), ("LFU", "LFU")]
+        for texto, valor in algoritmos:
+            tk.Radiobutton(
+                frame_radios,
+                text=texto,
+                variable=self.algoritmo_reemplazo,
+                value=valor,
+                bg="#2d2d2d",
+                fg="white",
+                selectcolor="#424242",
+                font=('Helvetica', 8),
+                command=self._cambiar_algoritmo_reemplazo
+            ).pack(side="left", padx=5)
+        
+        # Frame para umbrales
+        frame_umbrales = tk.Frame(self.frame_config_avanzada, bg="#2d2d2d")
+        frame_umbrales.pack(fill="x", padx=10, pady=5)
+        
+        tk.Label(
+            frame_umbrales,
+            text="Umbrales de SWAP:",
+            bg="#2d2d2d",
+            fg="white",
+            font=('Helvetica', 9)
+        ).pack(anchor="w")
+        
+        # Umbrales
+        frame_umbral_vals = tk.Frame(frame_umbrales, bg="#2d2d2d")
+        frame_umbral_vals.pack(fill="x", pady=2)
+        
+        tk.Label(frame_umbral_vals, text="Conservador:", bg="#2d2d2d", fg="white", font=('Helvetica', 8)).grid(row=0, column=0, sticky="w")
+        self.entry_conservador = tk.Entry(frame_umbral_vals, width=8, font=('Helvetica', 8))
+        self.entry_conservador.grid(row=0, column=1, padx=(5,10))
+        self.entry_conservador.insert(0, "60")
+        
+        tk.Label(frame_umbral_vals, text="Agresivo:", bg="#2d2d2d", fg="white", font=('Helvetica', 8)).grid(row=0, column=2, sticky="w")
+        self.entry_agresivo = tk.Entry(frame_umbral_vals, width=8, font=('Helvetica', 8))
+        self.entry_agresivo.grid(row=0, column=3, padx=5)
+        self.entry_agresivo.insert(0, "80")
+        
+        # Botón aplicar configuración
+        tk.Button(
+            frame_umbrales,
+            text="Aplicar",
+            bg="#4CAF50",
+            fg="white",
+            font=('Helvetica', 8),
+            command=self._aplicar_configuracion_avanzada
+        ).pack(pady=5)
+        
+        # Botón para demostración de algoritmos
+        tk.Button(
+            self.frame_config_avanzada,
+            text="🎯 Demo Algoritmos",
+            bg="#9C27B0",
+            fg="white",
+            font=('Helvetica', 9, 'bold'),
+            command=self._demostrar_algoritmos
+        ).pack(pady=5)
 
         # Configurar estilo para la tabla
         style = ttk.Style()
@@ -683,7 +848,88 @@ class SimuladorUI:
         self.tabla_procesos.column("Nombre", width=120, anchor="w")
         self.tabla_procesos.column("Estado", width=80, anchor="center")
         self.tabla_procesos.column("Duración", width=70, anchor="center")
-        self.tabla_procesos.column("Memoria", width=90, anchor="center")        # Añadir scrollbar
+        self.tabla_procesos.column("Memoria", width=90, anchor="center")
+
+        # --- Panel de Métricas Avanzadas ---
+        self.frame_metricas = tk.Frame(self.frame_inf_derecho, bg="#3d3d3d")
+        self.frame_metricas.pack(fill="x", padx=10, pady=5)
+        
+        # Título de métricas
+        tk.Label(
+            self.frame_metricas,
+            text="📊 Métricas de Memoria Avanzadas",
+            bg="#3d3d3d",
+            fg="white",
+            font=('Helvetica', 10, 'bold')
+        ).pack(pady=5)
+        
+        # Frame para métricas en dos columnas
+        frame_metricas_cols = tk.Frame(self.frame_metricas, bg="#3d3d3d")
+        frame_metricas_cols.pack(fill="x", padx=5, pady=5)
+        
+        # Columna izquierda
+        frame_col1 = tk.Frame(frame_metricas_cols, bg="#3d3d3d")
+        frame_col1.pack(side="left", fill="both", expand=True)
+        
+        self.label_page_faults = tk.Label(
+            frame_col1,
+            text="Page Faults: 0",
+            bg="#3d3d3d",
+            fg="#FFB74D",
+            font=('Helvetica', 9)
+        )
+        self.label_page_faults.pack(anchor="w", pady=1)
+        
+        self.label_hits = tk.Label(
+            frame_col1,
+            text="Hits: 0",
+            bg="#3d3d3d",
+            fg="#81C784",
+            font=('Helvetica', 9)
+        )
+        self.label_hits.pack(anchor="w", pady=1)
+        
+        self.label_hit_ratio = tk.Label(
+            frame_col1,
+            text="Hit Ratio: 0.0%",
+            bg="#3d3d3d",
+            fg="#64B5F6",
+            font=('Helvetica', 9)
+        )
+        self.label_hit_ratio.pack(anchor="w", pady=1)
+        
+        # Columna derecha
+        frame_col2 = tk.Frame(frame_metricas_cols, bg="#3d3d3d")
+        frame_col2.pack(side="right", fill="both", expand=True)
+        
+        self.label_algoritmo_actual = tk.Label(
+            frame_col2,
+            text="Algoritmo: LRU",
+            bg="#3d3d3d",
+            fg="#BA68C8",
+            font=('Helvetica', 9)
+        )
+        self.label_algoritmo_actual.pack(anchor="w", pady=1)
+        
+        self.label_reemplazos = tk.Label(
+            frame_col2,
+            text="Reemplazos: 0",
+            bg="#3d3d3d",
+            fg="#F06292",
+            font=('Helvetica', 9)
+        )
+        self.label_reemplazos.pack(anchor="w", pady=1)
+        
+        self.label_paginas_activas = tk.Label(
+            frame_col2,
+            text="Páginas en RAM: 0/64",
+            bg="#3d3d3d",
+            fg="#4DB6AC",
+            font=('Helvetica', 9)
+        )
+        self.label_paginas_activas.pack(anchor="w", pady=1)
+
+        # Añadir scrollbar para la tabla
         scrollbar = ttk.Scrollbar(
             self.frame_inf_derecho,
             orient="vertical",
@@ -715,6 +961,75 @@ class SimuladorUI:
         scrollbar.pack(side="right", fill="y")
         self.tabla_procesos.pack(fill="both", expand=True, padx=10, pady=(5,10))
 
+    def _finalizar_simulacion(self):
+        """Finaliza la simulación actual"""
+        if self.simulacion_iniciada:
+            self.simulacion_iniciada = False
+            self.simulador.detener_simulacion()
+            self.boton_iniciar.config(state=tk.NORMAL)
+            self.boton_finalizar.config(state=tk.DISABLED)
+            print("🛑 Simulación finalizada por el usuario")
+
+    def _cambiar_algoritmo_reemplazo(self):
+        """Cambia el algoritmo de reemplazo de páginas"""
+        algoritmo = self.algoritmo_reemplazo.get()
+        if hasattr(self.simulador.memoria, 'cambiar_algoritmo_reemplazo'):
+            success = self.simulador.memoria.cambiar_algoritmo_reemplazo(algoritmo)
+            if success:
+                print(f"🔄 Algoritmo de reemplazo cambiado a: {algoritmo}")
+                self.label_algoritmo_actual.config(text=f"Algoritmo: {algoritmo}")
+            else:
+                print(f"❌ Error al cambiar algoritmo a: {algoritmo}")
+    
+    def _aplicar_configuracion_avanzada(self):
+        """Aplica la configuración avanzada de umbrales"""
+        try:
+            conservador = float(self.entry_conservador.get()) / 100.0
+            agresivo = float(self.entry_agresivo.get()) / 100.0
+            
+            if not (0.0 <= conservador <= 1.0) or not (0.0 <= agresivo <= 1.0):
+                messagebox.showerror("Error", "Los umbrales deben estar entre 0 y 100")
+                return
+            
+            if conservador >= agresivo:
+                messagebox.showerror("Error", "El umbral conservador debe ser menor que el agresivo")
+                return
+            
+            if hasattr(self.simulador.memoria, 'configurar_umbrales_swap'):
+                success = self.simulador.memoria.configurar_umbrales_swap(agresivo, conservador)
+                if success:
+                    print(f"⚙️ Umbrales configurados: Conservador={conservador:.1%}, Agresivo={agresivo:.1%}")
+                    messagebox.showinfo("Éxito", "Configuración aplicada correctamente")
+                else:
+                    messagebox.showerror("Error", "No se pudo aplicar la configuración")
+            else:
+                messagebox.showwarning("Advertencia", "Gestión avanzada no disponible")
+                
+        except ValueError:
+            messagebox.showerror("Error", "Por favor ingrese valores numéricos válidos")
+        except Exception as e:
+            messagebox.showerror("Error inesperado", str(e))
+
+        # Actualizar etiquetas de métricas después de cambiar configuración
+        self._actualizar_metricas_memoria()
+
+    def _actualizar_metricas_memoria(self):
+        """Actualiza las etiquetas de métricas de memoria"""
+        uso = self.simulador.memoria.obtener_uso_memoria()
+        
+        # Obtener estadísticas de page faults y hits
+        page_faults = uso.get('page_faults', 0)
+        hits = uso.get('hits', 0)
+        hit_ratio = uso.get('hit_ratio', 0.0) * 100  # Convertir a porcentaje
+        
+        # Actualizar etiquetas
+        self.label_page_faults.config(text=f"Page Faults: {page_faults}")
+        self.label_hits.config(text=f"Hits: {hits}")
+        self.label_hit_ratio.config(text=f"Hit Ratio: {hit_ratio:.1f}%")
+        
+        # Actualizar etiquetas de páginas activas y algoritmo
+        self.label_paginas_activas.config(text=f"Páginas en RAM: {len(self.simulador.memoria.bloques_ocupados)}/{len(self.simulador.memoria.bloques_totales)}")
+        self.label_algoritmo_actual.config(text=f"Algoritmo: {self.algoritmo_reemplazo.get()}")
 
     def _finalizar_simulacion(self):
         """Finaliza la simulación actual"""
@@ -808,11 +1123,19 @@ class SimuladorUI:
 
     def _abrir_ventana_agregar_proceso(self):
         ventana = tk.Toplevel(self.master)
-        ventana.title("Añadir Proceso")
+        ventana.title("Añadir Proceso o Programa")
         ventana.configure(bg="#2c2c2c")
-        ventana.geometry("350x350")
+        ventana.geometry("450x500")
         ventana.resizable(False, False)
 
+        # Crear notebook para pestañas
+        notebook = ttk.Notebook(ventana)
+        notebook.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Pestaña 1: Proceso Manual
+        frame_manual = tk.Frame(notebook, bg="#2c2c2c")
+        notebook.add(frame_manual, text="Proceso Manual")
+        
         # Variables para los campos
         var_nombre = tk.StringVar()
         var_llegada = tk.StringVar()
@@ -839,7 +1162,7 @@ class SimuladorUI:
         vcmd = (ventana.register(validar_numero), '%P')
 
         # Marco para el formulario
-        form_frame = tk.Frame(ventana, bg="#2c2c2c")
+        form_frame = tk.Frame(frame_manual, bg="#2c2c2c")
         form_frame.pack(pady=10)
 
         # Campos del formulario
@@ -871,8 +1194,8 @@ class SimuladorUI:
         )
         btn_generar.grid(row=len(campos), column=0, columnspan=2, pady=10, sticky="ew")
 
-        # Función para añadir el proceso
-        def agregar():
+        # Función para añadir el proceso manual
+        def agregar_proceso_manual():
             try:
                 nombre = var_nombre.get() or f"Proceso_{random.randint(100,999)}"
                 llegada = max(0, int(var_llegada.get()))
@@ -900,29 +1223,139 @@ class SimuladorUI:
             except ValueError:
                 messagebox.showerror("Error", "Valores inválidos. Verifique los números.")
 
-        # Botones finales
-        btn_frame = tk.Frame(ventana, bg="#2c2c2c")
-        btn_frame.pack(pady=10)
+        # Botones para proceso manual
+        btn_frame_manual = tk.Frame(frame_manual, bg="#2c2c2c")
+        btn_frame_manual.pack(pady=10)
         
         tk.Button(
-            btn_frame, 
-            text="Cancelar", 
-            command=ventana.destroy,
-            width=10,
-            bg="#E74C3C",
-            fg="white"
-        ).pack(side="left", padx=10)
-        
-        tk.Button(
-            btn_frame, 
-            text="Añadir", 
-            command=agregar,
-            width=10,
+            btn_frame_manual, 
+            text="Añadir Proceso", 
+            command=agregar_proceso_manual,
+            width=15,
             bg="#2ECC71",
             fg="white"
-        ).pack(side="right", padx=10)
+        ).pack(pady=5)
 
-        # Generar valores aleatorios iniciales
+        # Pestaña 2: Programas Predefinidos
+        frame_programas = tk.Frame(notebook, bg="#2c2c2c")
+        notebook.add(frame_programas, text="Programas Predefinidos")
+        
+        # Título
+        tk.Label(
+            frame_programas,
+            text="🖥️ Selecciona un Programa",
+            bg="#2c2c2c",
+            fg="white",
+            font=('Helvetica', 12, 'bold')
+        ).pack(pady=10)
+        
+        # Frame para la lista de programas
+        lista_frame = tk.Frame(frame_programas, bg="#2c2c2c")
+        lista_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Crear gestor de programas si no existe
+        if not hasattr(self, 'gestor_programas'):
+            from programa import GestorProgramas
+            self.gestor_programas = GestorProgramas()
+        
+        # Lista de programas con información
+        programas_info = {
+            "Word": "📝 Microsoft Word - Editor de texto (400MB)",
+            "Excel": "📊 Microsoft Excel - Hoja de cálculo (350MB)", 
+            "Chrome": "🌐 Google Chrome - Navegador web (800MB)",
+            "Photoshop": "🎨 Adobe Photoshop - Editor de imágenes (1200MB)",
+            "Visual Studio": "⚙️ Visual Studio - IDE de desarrollo (900MB)",
+            "Steam": "🎮 Steam - Plataforma de juegos (600MB)",
+            "Zoom": "📹 Zoom - Videoconferencias (200MB)",
+            "Spotify": "🎵 Spotify - Reproductor de música (250MB)"
+        }
+        
+        # Variable para programa seleccionado
+        programa_seleccionado = tk.StringVar()
+        
+        # Crear botones de radio para cada programa
+        for programa, descripcion in programas_info.items():
+            tk.Radiobutton(
+                lista_frame,
+                text=descripcion,
+                variable=programa_seleccionado,
+                value=programa,
+                bg="#2c2c2c",
+                fg="white",
+                selectcolor="#424242",
+                font=('Helvetica', 10),
+                anchor="w"
+            ).pack(fill="x", pady=2)
+        
+        # Establecer selección por defecto
+        programa_seleccionado.set("Word")
+        
+        # Campo para tiempo de llegada del programa
+        tiempo_frame = tk.Frame(frame_programas, bg="#2c2c2c")
+        tiempo_frame.pack(fill="x", padx=20, pady=10)
+        
+        tk.Label(tiempo_frame, text="Tiempo de llegada:", bg="#2c2c2c", fg="white").pack(side="left")
+        var_tiempo_programa = tk.StringVar(value="0")
+        tk.Entry(
+            tiempo_frame, 
+            textvariable=var_tiempo_programa, 
+            width=10,
+            validate="key", 
+            validatecommand=vcmd
+        ).pack(side="right")
+        
+        # Función para lanzar programa
+        def lanzar_programa():
+            try:
+                nombre_programa = programa_seleccionado.get()
+                tiempo_llegada = int(var_tiempo_programa.get() or "0")
+                
+                if not nombre_programa:
+                    messagebox.showwarning("Advertencia", "Selecciona un programa")
+                    return
+                
+                # Crear programa predefinido
+                programa = self.gestor_programas.crear_programa_predefinido(
+                    nombre_programa, tiempo_llegada
+                )
+                
+                # Lanzar programa (esto lo divide en procesos hijos)
+                procesos_hijos = self.gestor_programas.lanzar_programa(programa, self.simulador)
+                
+                # Actualizar UI
+                self._actualizar_ui_memoria()
+                self._actualizar_tabla_procesos()
+                ventana.destroy()
+                
+                print(f"🚀 Programa '{nombre_programa}' lanzado:")
+                print(f"   📦 Dividido en {len(procesos_hijos)} procesos hijos")
+                print(f"   💾 Tamaño total: {programa.tamano_total_mb}MB")
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al lanzar programa: {str(e)}")
+        
+        # Botón para lanzar programa
+        tk.Button(
+            frame_programas,
+            text="🚀 Lanzar Programa",
+            command=lanzar_programa,
+            bg="#3498DB",
+            fg="white",
+            font=('Helvetica', 11, 'bold'),
+            width=20
+        ).pack(pady=15)
+        
+        # Botón de cerrar (común para ambas pestañas)
+        tk.Button(
+            ventana,
+            text="Cerrar",
+            command=ventana.destroy,
+            bg="#E74C3C",
+            fg="white",
+            width=15
+        ).pack(pady=10)
+
+        # Generar valores aleatorios iniciales para la pestaña manual
         generar_aleatorio()
 
         # Hacer la ventana modal
@@ -1312,6 +1745,133 @@ Permite visualizar en tiempo real cómo el sistema asigna recursos y ejecuta pro
         
         ventana_ayuda.protocol("WM_DELETE_WINDOW", on_closing)
 
+    def _demostrar_algoritmos(self):
+        """Ejecuta una demostración de los algoritmos de reemplazo"""
+        try:
+            # Crear ventana de demostración
+            demo_window = tk.Toplevel(self.root)
+            demo_window.title("🎯 Demostración de Algoritmos")
+            demo_window.geometry("600x400")
+            demo_window.configure(bg="#2E2E2E")
+            
+            # Marco principal
+            main_frame = tk.Frame(demo_window, bg="#2E2E2E")
+            main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+            
+            # Título
+            titulo = tk.Label(
+                main_frame,
+                text="🎯 Demostración de Algoritmos de Reemplazo",
+                font=('Helvetica', 14, 'bold'),
+                bg="#2E2E2E",
+                fg="white"
+            )
+            titulo.pack(pady=(0, 20))
+            
+            # Texto explicativo
+            explicacion = tk.Label(
+                main_frame,
+                text="Esta demostración simula accesos a páginas para mostrar\nlas diferencias entre los algoritmos FIFO, LRU y LFU.",
+                font=('Helvetica', 10),
+                bg="#2E2E2E",
+                fg="#CCCCCC",
+                justify='center'
+            )
+            explicacion.pack(pady=(0, 20))
+            
+            # Área de resultados
+            resultados_frame = tk.Frame(main_frame, bg="#424242")
+            resultados_frame.pack(fill='both', expand=True, padx=10, pady=10)
+            
+            resultados_text = tk.Text(
+                resultados_frame,
+                bg="#424242",
+                fg="white",
+                font=('Courier', 9),
+                wrap='word'
+            )
+            resultados_text.pack(fill='both', expand=True, padx=10, pady=10)
+            
+            # Función para ejecutar la demo
+            def ejecutar_demo():
+                resultados_text.delete(1.0, tk.END)
+                resultados_text.insert(tk.END, "🎯 Iniciando demostración de algoritmos...\n\n")
+                
+                # Simular secuencia de accesos a páginas
+                secuencia_paginas = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5]
+                
+                # Obtener algoritmo actual
+                algoritmo_actual = self.var_algoritmo.get()
+                resultados_text.insert(tk.END, f"🧠 Algoritmo seleccionado: {algoritmo_actual}\n")
+                resultados_text.insert(tk.END, f"📄 Secuencia de páginas: {secuencia_paginas}\n\n")
+                
+                # Simular métricas iniciales
+                page_faults = 0
+                hits = 0
+                
+                for i, pagina in enumerate(secuencia_paginas):
+                    # Simular si es hit o fault (aleatorio para demo)
+                    import random
+                    es_hit = random.choice([True, False]) if i > 3 else False
+                    
+                    if es_hit:
+                        hits += 1
+                        resultados_text.insert(tk.END, f"✅ Acceso {i+1}: Página {pagina} - HIT\n")
+                    else:
+                        page_faults += 1
+                        resultados_text.insert(tk.END, f"❌ Acceso {i+1}: Página {pagina} - PAGE FAULT\n")
+                    
+                    demo_window.update()
+                    import time
+                    time.sleep(0.5)
+                
+                # Mostrar resultados finales
+                total_accesos = hits + page_faults
+                hit_ratio = (hits / total_accesos * 100) if total_accesos > 0 else 0
+                
+                resultados_text.insert(tk.END, f"\n📊 RESULTADOS FINALES:\n")
+                resultados_text.insert(tk.END, f"   Total accesos: {total_accesos}\n")
+                resultados_text.insert(tk.END, f"   Hits: {hits}\n")
+                resultados_text.insert(tk.END, f"   Page Faults: {page_faults}\n")
+                resultados_text.insert(tk.END, f"   Hit Ratio: {hit_ratio:.1f}%\n\n")
+                resultados_text.insert(tk.END, f"💡 Prueba cambiar el algoritmo en la configuración\n")
+                resultados_text.insert(tk.END, f"   y ejecutar la demo nuevamente para comparar.\n")
+                
+                resultados_text.see(tk.END)
+            
+            # Botones
+            botones_frame = tk.Frame(main_frame, bg="#2E2E2E")
+            botones_frame.pack(pady=20)
+            
+            btn_ejecutar = tk.Button(
+                botones_frame,
+                text="🚀 Ejecutar Demostración",
+                bg="#4CAF50",
+                fg="white",
+                font=('Helvetica', 10, 'bold'),
+                command=ejecutar_demo
+            )
+            btn_ejecutar.pack(side='left', padx=10)
+            
+            btn_cerrar = tk.Button(
+                botones_frame,
+                text="❌ Cerrar",
+                bg="#F44336",
+                fg="white",
+                font=('Helvetica', 10, 'bold'),
+                command=demo_window.destroy
+            )
+            btn_cerrar.pack(side='left', padx=10)
+            
+            # Mensaje inicial
+            resultados_text.insert(tk.END, "👆 Presiona 'Ejecutar Demostración' para comenzar\n\n")
+            resultados_text.insert(tk.END, "🎯 Esta demo mostrará cómo el algoritmo seleccionado\n")
+            resultados_text.insert(tk.END, "   maneja una secuencia de accesos a páginas.\n\n")
+            resultados_text.insert(tk.END, "💡 Cambia el algoritmo en 'Configuración Avanzada'\n")
+            resultados_text.insert(tk.END, "   y ejecuta la demo nuevamente para comparar.\n")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error en demostración: {str(e)}")
 
 # --- Punto de Entrada de la Aplicación ---
 if __name__ == "__main__":
